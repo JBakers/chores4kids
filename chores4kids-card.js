@@ -116,7 +116,13 @@ const C4K_I18N = {
 			'editor.color_kid_points_text':'Kids Total Points (text)',
 			'editor.color_task_points_bg':'Task points (background)',
 			'editor.color_task_points_text':'Task points (text)',
-			'editor.color_empty_default':'Empty = default'
+			'editor.color_empty_default':'Empty = default',
+		// Admin-2 tabs, stats, task modal
+		'tab.overview':'Overview','tab.tasks':'Tasks','tab.children':'Children','tab.settings':'Settings',
+		'admin2.stats_active':'Active','admin2.stats_awaiting':'Awaiting approval','admin2.stats_points':'Total points',
+		'admin2.new_task':'New task','admin2.settings_title':'Card settings',
+		'admin2.settings_note':'These settings are configured in the card editor (the ⚙ button when editing the dashboard).',
+		'task_modal.section_basics':'Basics','task_modal.section_options':'Options','task_modal.section_repeat':'Repeat & schedule'
 	},
 	da: {
 		'overview.title': 'Tildelte opgaver',
@@ -438,7 +444,13 @@ const C4K_I18N = {
 			'editor.color_kid_points_text':'Totaalpunten kinderen (tekst)',
 			'editor.color_task_points_bg':'Taakpunten (achtergrond)',
 			'editor.color_task_points_text':'Taakpunten (tekst)',
-			'editor.color_empty_default':'Leeg = standaard'
+			'editor.color_empty_default':'Leeg = standaard',
+		// Admin-2 tabs, stats, taakmodal
+		'tab.overview':'Overzicht','tab.tasks':'Taken','tab.children':'Kinderen','tab.settings':'Instellingen',
+		'admin2.stats_active':'Actief','admin2.stats_awaiting':'Wacht op goedkeuring','admin2.stats_points':'Totaal punten',
+		'admin2.new_task':'Nieuwe taak','admin2.settings_title':'Kaartinstellingen',
+		'admin2.settings_note':'Deze instellingen stel je in via de kaarteditor (de ⚙-knop bij het bewerken van het dashboard).',
+		'task_modal.section_basics':'Basis','task_modal.section_options':'Opties','task_modal.section_repeat':'Herhaling & schema'
 		},
 			sv: {
 			'overview.title': 'Tilldelade uppgifter', 'overview.show_all': 'Visa alla ({pending} väntar)', 'overview.none': 'Inga uppgifter ännu.',
@@ -982,7 +994,11 @@ class Chores4KidsDevCard extends LitElement {
 			// Bulk select
 			_bulkMode: { state: true }, _bulkSelected: { state: true }, _bulkChildIds: { state: true }, _bulkChildMenuOpen: { state: true },
 			// Task description view
-			_viewingTaskDesc: { state: true }
+			_viewingTaskDesc: { state: true },
+			// Admin-2 state
+			_admin2Tab: { state: true },
+			_taskModal2Open: { state: true },
+			_admin2TaskSections: { state: true }
 		};
 	}
 	static get styles(){ return css`
@@ -1282,6 +1298,32 @@ class Chores4KidsDevCard extends LitElement {
 		.collapsible{ display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
 		.chev{ transition: transform .2s ease; }
 		.chev.rot{ transform: rotate(-90deg); }
+		/* ===== Admin-2 ===== */
+		.admin2-tabs{ display:flex; gap:6px; margin-bottom:16px; overflow-x:auto; padding-bottom:2px; }
+		.admin2-tab{ padding:8px 18px; border-radius:20px; cursor:pointer; border:1px solid var(--divider-color); background:var(--secondary-background-color); color:var(--primary-text-color); white-space:nowrap; font:inherit; position:relative; flex:0 0 auto; }
+		.admin2-tab.active{ background:var(--primary-color); color:var(--text-primary-color,#fff); border-color:transparent; }
+		.admin2-tab:hover:not(.active){ filter:brightness(1.05); }
+		.admin2-badge{ position:absolute; top:-5px; right:-5px; background:var(--error-color,#d32f2f); color:#fff; border-radius:10px; font-size:.65rem; padding:1px 5px; min-width:16px; text-align:center; line-height:16px; pointer-events:none; }
+		.admin2-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+		.admin2-stat{ background:var(--secondary-background-color); border-radius:12px; padding:12px 14px; text-align:center; }
+		.admin2-stat.stat-alert{ background:color-mix(in srgb,var(--warning-color,#ff9800) 12%,transparent); }
+		.admin2-stat .stat-num{ font-size:1.5rem; font-weight:700; line-height:1.1; }
+		.admin2-stat .stat-lbl{ font-size:.78rem; color:var(--secondary-text-color); margin-top:2px; }
+		@media(max-width:500px){ .admin2-stat .stat-num{ font-size:1.2rem; } }
+		.admin2-awaiting-section{ background:color-mix(in srgb,var(--warning-color,#ff9800) 8%,transparent); border-radius:12px; padding:12px 14px; margin-bottom:12px; border:1px solid color-mix(in srgb,var(--warning-color,#ff9800) 25%,transparent); }
+		.admin2-section-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+		.admin2-modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100000; display:flex; align-items:flex-start; justify-content:center; padding:24px 12px; overflow-y:auto; box-sizing:border-box; }
+		.admin2-modal{ background:var(--card-background-color); border-radius:16px; padding:20px 24px 16px; width:100%; max-width:660px; position:relative; }
+		.admin2-modal-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+		.admin2-modal-title{ font-size:1.1rem; font-weight:700; margin:0; }
+		.admin2-modal-section-header{ display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; padding:10px 0 6px; border-top:1px solid var(--divider-color); margin-top:8px; font-weight:600; font-size:.95rem; }
+		.admin2-modal-section-body{ padding-bottom:4px; }
+		.admin2-modal-footer{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; padding-top:12px; border-top:1px solid var(--divider-color); }
+		@media(max-width:500px){ .admin2-modal{ padding:16px 14px 12px; } .admin2-modal-footer{ flex-wrap:wrap; } .admin2-modal-footer button{ flex:1 1 auto; } }
+		.admin2-setting-row{ display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--divider-color); }
+		.admin2-setting-lbl{ flex:1; }
+		.admin2-setting-val{ font-weight:600; }
+		.admin2-info-box{ background:var(--secondary-background-color); border-radius:10px; padding:12px 16px; font-size:.9rem; color:var(--secondary-text-color); margin-top:12px; }
 	`; }
 
 	constructor(){
@@ -1330,6 +1372,10 @@ class Chores4KidsDevCard extends LitElement {
 		// Child
 		this._shopOpen = false;
 		this._viewingTaskDesc = null;
+		// Admin-2
+		this._admin2Tab = 'overview';
+		this._taskModal2Open = false;
+		this._admin2TaskSections = { options: true, repeat: true };
 		// caches
 		this._idTasks = null; this._idShop = null; this._idChild = null;
 		try{ this._iconRecents = JSON.parse(localStorage.getItem('c4k_icn_recent')||'[]') || []; }catch{ this._iconRecents = []; }
@@ -1340,6 +1386,7 @@ class Chores4KidsDevCard extends LitElement {
 		try{ this._catOrder = JSON.parse(localStorage.getItem('c4k_cat_order')||'[]') || []; }catch{ this._catOrder = []; }
 		// collapsed sections
 		try{ this._collapsed = JSON.parse(localStorage.getItem('c4k_admin_collapsed')||'{}') || {}; }catch{ this._collapsed = {}; }
+		if (!('a2categories' in this._collapsed)) this._collapsed['a2categories'] = true;
 		// completed timestamps
 		try{ this._completed = JSON.parse(localStorage.getItem('c4k_completed_ts')||'{}') || {}; }catch{ this._completed = {}; }
 		// child-only visual bonus progress (no backend persistence)
@@ -1433,7 +1480,8 @@ class Chores4KidsDevCard extends LitElement {
 		// they set additional reactive props alongside hass.
 		const anyModalOpen = this._tasksModalOpen || this._shopModalOpen ||
 			!!this._pointsChild || this._iconModalOpen || this._customIconModalOpen ||
-			!!this._advItem || this._sortModalOpen || !!this._reassignTask || this._bulkMode;
+			!!this._advItem || this._sortModalOpen || !!this._reassignTask || this._bulkMode ||
+			this._taskModal2Open;
 		if (anyModalOpen && changedProps.size === 1 && changedProps.has('hass')) return false;
 		return true;
 	}
@@ -1604,7 +1652,7 @@ class Chores4KidsDevCard extends LitElement {
 	static getConfigElement(){ return document.createElement('chores4kids-card-editor'); }
 	static getStubConfig(){ return { mode: 'admin' }; }
 
-	getCardSize(){ return this._mode==='admin'? 8 : 3; }
+	getCardSize(){ return (this._mode==='admin'||this._mode==='admin-2')? 8 : 3; }
 
 	// Helpers
 	_t(key, vars){ return c4kLocalize(key, this.hass || navigator.language || 'en', vars); }
@@ -1900,7 +1948,7 @@ class Chores4KidsDevCard extends LitElement {
 		this.__storeHass = this.hass;
 		const states = this.hass?.states || {};
 		const children = Object.values(states)
-			.filter((s)=> s && s.entity_id?.startsWith('sensor.') && s.attributes?.child_id && (s.attributes?.slug !== undefined))
+			.filter((s)=> s && s.entity_id?.startsWith('sensor.') && s.attributes?.child_id && (s.attributes?.slug !== undefined) && s.attributes.slug !== 'deleted')
 			.map((s)=> ({ id: s.attributes.child_id, name: s.attributes.name, slug: s.attributes.slug, points: Number(s.state||0), tasks: s.attributes.tasks||[] }));
 		// tasks
 		let allTasksSensor = this._idTasks && states[this._idTasks];
@@ -1918,7 +1966,7 @@ class Chores4KidsDevCard extends LitElement {
 
 	// ===== RENDER =====
 	render(){
-		return this._mode==='admin' ? this._renderAdmin() : (this._mode==='kid' ? this._renderChild() : this._renderOverviewOnly());
+		return this._mode==='admin' ? this._renderAdmin() : (this._mode==='admin-2' ? this._renderAdmin2() : (this._mode==='kid' ? this._renderChild() : this._renderOverviewOnly()));
 	}
 
 	_isCollapsed(key){ try{ return !!(this._collapsed && this._collapsed[key]); }catch{ return false; } }
@@ -2348,7 +2396,7 @@ class Chores4KidsDevCard extends LitElement {
 						if(!active.length) return html`<i>${this._t('overview.none_active')}</i>`;
 						const sorted=this._sortTasks(active, true);
 						const top=sorted.slice(0,3); const pending=allAssigned.filter(t=>t.status==='awaiting_approval').length;
-						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:}
+						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:''}
 							<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 							${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 							<td data-label="${this._t('th.categories')}">${(()=>{ const ids=Array.isArray(t.categories)? t.categories:[]; const names=this._orderedCategoryNames(ids); return names.length? names.map(n=> html`<span class='chip'>${n}</span>`): html`—`; })()}</td>
@@ -2385,7 +2433,7 @@ class Chores4KidsDevCard extends LitElement {
 						const awaiting=allAssigned.filter(t=>this._effectiveStatus(t)==='awaiting_approval');
 						if(!awaiting.length) return html`<i>${this._t('overview.none_active')}</i>`;
 						const sorted=this._sortTasks(awaiting, true);
-						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:}
+						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:''}
 							<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 							${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 							<td data-label="${this._t('th.categories')}">${(()=>{ const ids=Array.isArray(t.categories)? t.categories:[]; const names=this._orderedCategoryNames(ids); return names.length? names.map(n=> html`<span class='chip'>${n}</span>`): html`—`; })()}</td>
@@ -2412,7 +2460,7 @@ class Chores4KidsDevCard extends LitElement {
 						const finished=allAssigned.filter(t=>['approved','taken'].includes(this._effectiveStatus(t)));
 						if(!finished.length) return html`<i>${this._t('overview.finished_none')}</i>`;
 						const sorted=this._sortTasks(finished, true);
-						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:}
+						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:''}
 							<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 							${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 							<td data-label="${this._t('th.categories')}">${(()=>{ const ids=Array.isArray(t.categories)? t.categories:[]; const names=this._orderedCategoryNames(ids); return names.length? names.map(n=> html`<span class='chip'>${n}</span>`): html`—`; })()}</td>
@@ -2460,7 +2508,591 @@ class Chores4KidsDevCard extends LitElement {
 		${this._renderIconModal()}
 		${this._renderCustomIconModal()}
 	`;
-}	// ------- OVERVIEW-ONLY VIEW -------
+}	// ======= ADMIN-2 (tab-based layout) =======
+
+	_renderAdmin2(){
+		const { children } = this._store;
+		const pointsEnabled = this._pointsEnabled();
+		return html`
+			<ha-card>
+				<div class="card-content">
+					${this._renderAdmin2TabBar()}
+					${this._admin2Tab==='overview' ? this._renderAdmin2Overview()  : ''}
+					${this._admin2Tab==='tasks'    ? this._renderAdmin2Tasks()     : ''}
+					${this._admin2Tab==='children' ? this._renderAdmin2Children()  : ''}
+					${this._admin2Tab==='settings' ? this._renderAdmin2Settings()  : ''}
+				</div>
+				${this._renderAdmin2TaskModal()}
+				${pointsEnabled ? this._renderPointsModal() : ''}
+				${this._renderAllTasksModal()}
+				${pointsEnabled ? this._renderShopModal() : ''}
+				${this._renderAdvancedModal()}
+				${this._renderSortModal()}
+				${this._renderReassignModal()}
+			</ha-card>
+			${this._renderIconModal()}
+			${this._renderCustomIconModal()}
+		`;
+	}
+
+	_renderAdmin2TabBar(){
+		const { allTasks } = this._store;
+		const awaitingCount = (allTasks||[]).filter(t=>!!t.assigned_to && this._effectiveStatus(t)==='awaiting_approval').length;
+		const tabs = [
+			{ id:'overview', label:this._t('tab.overview'), badge:awaitingCount },
+			{ id:'tasks',    label:this._t('tab.tasks') },
+			{ id:'children', label:this._t('tab.children') },
+			{ id:'settings', label:this._t('tab.settings') },
+		];
+		return html`
+			<div class="admin2-tabs">
+				${tabs.map(tab=>html`
+					<button class="admin2-tab ${this._admin2Tab===tab.id?'active':''}"
+						@click=${()=>{ this._admin2Tab=tab.id; this.requestUpdate(); }}>
+						${tab.label}
+						${tab.badge ? html`<span class="admin2-badge">${tab.badge}</span>` : ''}
+					</button>
+				`)}
+			</div>
+		`;
+	}
+
+	_renderAdmin2Overview(){
+		const { allTasks, children } = this._store;
+		const pointsEnabled = this._pointsEnabled();
+		const allAssigned = (allTasks||[]).filter(t=>!!t.assigned_to);
+		const active   = allAssigned.filter(t=>!['approved','awaiting_approval','taken'].includes(this._effectiveStatus(t)));
+		const awaiting = allAssigned.filter(t=>this._effectiveStatus(t)==='awaiting_approval');
+		const finished = allAssigned.filter(t=>['approved','taken'].includes(this._effectiveStatus(t)));
+		const totalPoints = pointsEnabled ? children.reduce((s,c)=>s+(Number(c.points)||0),0) : 0;
+
+		const thead = html`<thead><tr>
+			<th>${this._t('ph.title')}</th>
+			${pointsEnabled?html`<th>${this._t('ph.points')}</th>`:''}
+			<th>${this._t('th.categories')}</th>
+			<th>${this._t('th.status')}</th>
+			<th>${this._t('th.completed')}</th>
+			<th>${this._t('th.assign')}</th>
+			<th>${this._t('th.actions')}</th>
+		</tr></thead>`;
+
+		const row = (t)=>html`<tr>
+			<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim()?` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}`:''}${t.icon?html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
+			${pointsEnabled?html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
+			<td data-label="${this._t('th.categories')}">${(()=>{const ids=Array.isArray(t.categories)?t.categories:[];const cats=this._orderedCategories(ids);return cats.length?cats.map(c=>this._renderCategoryChip(c)):html`—`;})()}</td>
+			<td data-label="${this._t('th.status')}">${this._renderStatusBadge(t)}</td>
+			<td data-label="${this._t('th.completed')}">${(()=>{const ts=this._displayedTsFor(t);if(!ts)return html`—`;return html`${this._fmtDateTime(ts).formatted}`;})()}</td>
+			<td data-label="${this._t('th.assign')}">${t.assigned_to_name||this._t('status.unassigned')}</td>
+			<td data-label="${this._t('th.actions')}">
+				${t.status==='assigned'?html`
+					${this._canManualReassign(t)?html`<button class="btn-ghost" @click=${()=>this._manualReassign(t)}>${this._t('btn.back')}</button>`:''}
+					<button class="btn-danger" @click=${()=>this._deleteTask(t.id)}>${this._t('btn.delete')}</button>
+				`:t.status==='in_progress'?html`
+					<button class="btn-ghost" @click=${()=>this._setStatus(t.id,'awaiting_approval')}>${this._t('btn.awaiting')}</button>
+					<button class="btn-ghost" @click=${()=>this._setStatus(t.id,'assigned')}>${this._t('btn.back')}</button>
+					<button class="btn-danger" @click=${()=>this._deleteTask(t.id)}>${this._t('btn.delete')}</button>
+				`:t.status==='awaiting_approval'?html`
+					${this._renderAwaitingActions(t)}
+				`:html`
+					${this._renderBonusApproveBtn(t)}
+					${this._canManualReassign(t)?html`<button class="btn-ghost" @click=${()=>this._manualReassign(t)}>${this._t('btn.back')}</button>`:''}
+					<button class="btn-danger" @click=${()=>this._deleteTask(t.id)}>${this._t('btn.delete')}</button>
+				`}
+			</td>
+		</tr>`;
+
+		return html`
+			<div class="admin2-stats">
+				<div class="admin2-stat">
+					<div class="stat-num">${active.length}</div>
+					<div class="stat-lbl">${this._t('admin2.stats_active')}</div>
+				</div>
+				<div class="admin2-stat ${awaiting.length?'stat-alert':''}">
+					<div class="stat-num">${awaiting.length}</div>
+					<div class="stat-lbl">${this._t('admin2.stats_awaiting')}</div>
+				</div>
+				${pointsEnabled?html`<div class="admin2-stat">
+					<div class="stat-num">${totalPoints}</div>
+					<div class="stat-lbl">${this._t('admin2.stats_points')}</div>
+				</div>`:html`<div class="admin2-stat">
+					<div class="stat-num">${finished.length}</div>
+					<div class="stat-lbl">${this._t('overview.finished_title')}</div>
+				</div>`}
+			</div>
+
+			${awaiting.length?html`
+				<div class="admin2-awaiting-section">
+					<h3 class="h3-row" style="margin:0 0 10px;">
+						<span class="collapsible" @click=${()=>this._toggleSection('a2awaiting')}>
+							<ha-icon class="chev ${this._isCollapsed('a2awaiting')?'rot':''}" icon="mdi:chevron-down"></ha-icon>
+							${this._t('lbl.awaiting')} (${awaiting.length})
+						</span>
+					</h3>
+					${this._isCollapsed('a2awaiting')?'':html`
+						<div class="table-wrap"><table class="table-center table-fixed">
+							${this._renderAssignedFinishedColgroup()}
+							${thead}
+							<tbody>${this._sortTasks(awaiting,true).map(row)}</tbody>
+						</table></div>
+					`}
+				</div>
+			`:''}
+
+			<h3 class="h3-row">
+				<span class="collapsible" @click=${()=>this._toggleSection('a2active')}>
+					<ha-icon class="chev ${this._isCollapsed('a2active')?'rot':''}" icon="mdi:chevron-down"></ha-icon>
+					${this._t('overview.title')} (${active.length})
+				</span>
+				<button class="btn-ghost icon-btn" title="${this._t('sort.configure')}" @click=${()=>this._sortModalOpen=true}><ha-icon icon="mdi:sort-variant"></ha-icon></button>
+			</h3>
+			${this._isCollapsed('a2active')?'':(active.length?html`
+				<div class="table-wrap"><table class="table-center table-fixed">
+					${this._renderAssignedFinishedColgroup()}
+					${thead}
+					<tbody>${this._sortTasks(active,true).slice(0,3).map(row)}</tbody>
+				</table></div>
+				${active.length>3?html`<div class="row" style="justify-content:flex-end;">
+					<button class="btn-primary" @click=${()=>this._tasksModalOpen=true}>${this._t('overview.show_all',{pending:active.length})}</button>
+				</div>`:''}
+			`:html`<i>${this._t('overview.none_active')}</i>`)}
+
+			<h3 class="h3-row">
+				<span class="collapsible" @click=${()=>this._toggleSection('a2finished')}>
+					<ha-icon class="chev ${this._isCollapsed('a2finished')?'rot':''}" icon="mdi:chevron-down"></ha-icon>
+					${this._t('overview.finished_title')} (${finished.length})
+				</span>
+			</h3>
+			${this._isCollapsed('a2finished')?'':(finished.length?html`
+				<div class="table-wrap"><table class="table-center table-fixed">
+					${this._renderAssignedFinishedColgroup()}
+					${thead}
+					<tbody>${this._sortTasks(finished,true).map(t=>html`<tr>
+						<td data-label="${this._t('ph.title')}">${t.title}${t.icon?html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
+						${pointsEnabled?html`<td><b>${t.points}</b></td>`:''}
+						<td>${(()=>{const ids=Array.isArray(t.categories)?t.categories:[];const cats=this._orderedCategories(ids);return cats.length?cats.map(c=>this._renderCategoryChip(c)):html`—`;})()}</td>
+						<td>${this._renderStatusBadge(t)}</td>
+						<td>${(()=>{const ts=this._displayedTsFor(t);if(!ts)return html`—`;return html`${this._fmtDateTime(ts).formatted}`;})()}</td>
+						<td>${t.assigned_to_name||this._t('status.unassigned')}</td>
+						<td>
+							${this._renderBonusApproveBtn(t)}
+							${this._canManualReassign(t)?html`<button class="btn-ghost" @click=${()=>this._manualReassign(t)}>${this._t('btn.back')}</button>`:''}
+							<button class="btn-danger" @click=${()=>this._deleteTask(t.id)}>${this._t('btn.delete')}</button>
+						</td>
+					</tr>`)}</tbody>
+				</table></div>
+			`:html`<i>${this._t('overview.finished_none')}</i>`)}
+		`;
+	}
+
+	_renderAdmin2Tasks(){
+		const { allTasks, children } = this._store;
+		const pointsEnabled = this._pointsEnabled();
+		const unassigned = this._sortTasks((allTasks||[]).filter(t=>!t.assigned_to), false);
+		return html`
+			<div class="admin2-section-toolbar">
+				<h3 style="margin:0;">${this._t('section.tasks')} (${unassigned.length})</h3>
+				<div style="display:flex;gap:6px;align-items:center;">
+					<button class="btn-ghost icon-btn" title="${this._t('sort.configure')}" @click=${()=>this._sortModalOpen=true}><ha-icon icon="mdi:sort-variant"></ha-icon></button>
+					<button class="btn-ghost icon-btn ${this._bulkMode?'active':''}" title="${this._t('bulk.toggle')}" @click=${()=>{ this._bulkMode=!this._bulkMode; if(!this._bulkMode){this._bulkSelected=new Set();this._bulkChildIds=new Set();this._bulkChildMenuOpen=false;} }}><ha-icon icon="mdi:checkbox-multiple-outline"></ha-icon></button>
+					<button class="btn-primary" @click=${()=>this._openAdmin2NewTask()}>+ ${this._t('admin2.new_task')}</button>
+				</div>
+			</div>
+
+			${this._bulkMode?html`<div class="bulk-bar" @click=${e=>e.stopPropagation()}>
+				<span class="bulk-count">${this._t('bulk.n_selected',{n:this._bulkSelected.size})}</span>
+				<div class="bulk-dd multi-dd" @click=${(e)=>{e.stopPropagation();this._bulkChildMenuOpen=!this._bulkChildMenuOpen;this.requestUpdate();}}>
+					<div class="box"><span class="multi-dd-value ${this._bulkChildIds.size?'':'placeholder'}">${(()=>{const names=children.filter(c=>this._bulkChildIds.has(c.id)).map(c=>c.name);return names.length?(names.slice(0,2).join(', ')+(names.length>2?` +${names.length-2}`:'')):this._t('select.assign_child');})()}</span><ha-icon icon="mdi:chevron-down"></ha-icon></div>
+					${this._bulkChildMenuOpen?html`<div class="multi-dd-menu" @click=${e=>e.stopPropagation()}>${children.map(c=>html`<label><input type="checkbox" .checked=${this._bulkChildIds.has(c.id)} @change=${(e)=>{const s=new Set(this._bulkChildIds);e.target.checked?s.add(c.id):s.delete(c.id);this._bulkChildIds=s;this.requestUpdate();}}/><span>${c.name}</span></label>`)}</div>`:''}
+				</div>
+				<button class="btn-primary" ?disabled=${!this._bulkChildIds.size||!this._bulkSelected.size} @click=${()=>this._bulkAssignSelected()}>${this._t('bulk.assign')}</button>
+				<button class="btn-danger" ?disabled=${!this._bulkSelected.size} @click=${()=>this._bulkDeleteSelected()}>${this._t('bulk.delete')}</button>
+				<button class="btn-ghost" @click=${()=>{this._bulkMode=false;this._bulkSelected=new Set();this._bulkChildIds=new Set();this._bulkChildMenuOpen=false;}}>${this._t('bulk.cancel')}</button>
+			</div>`:''}
+
+			${unassigned.length?html`
+				<div class="table-wrap"><table class="table-center">
+					<thead><tr>
+						${this._bulkMode?html`<th style="width:28px;"></th>`:''}
+						<th>${this._t('ph.title')}</th>
+						${pointsEnabled?html`<th>${this._t('ph.points')}</th>`:''}
+						<th>${this._t('th.categories')}</th>
+						<th class="assign-col">${this._t('th.assign')}</th>
+						<th>${this._t('th.actions')}</th>
+					</tr></thead>
+					<tbody @click=${()=>{this._openAssignMenuFor=null;this._assignMenuStyle='';}}>
+						${unassigned.map(t=>html`
+							<tr data-task="${t.id}">
+								${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{const s=new Set(this._bulkSelected);e.target.checked?s.add(t.id):s.delete(t.id);this._bulkSelected=s;}}/></td>`:''}
+								<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim()?` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}`:''}${t.icon?html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
+								${pointsEnabled?html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
+								<td data-label="${this._t('th.categories')}">${(()=>{const ids=Array.isArray(t.categories)?t.categories:[];const cats=this._orderedCategories(ids);return cats.length?cats.map(c=>this._renderCategoryChip(c)):html`—`;})()}</td>
+								<td class="assign-cell" data-label="${this._t('th.assign')}">
+									${this._autoAssignActive(t)?(()=>{const ids=(Array.isArray(t.repeat_child_ids)&&t.repeat_child_ids.length)?t.repeat_child_ids:(t.repeat_child_id?[t.repeat_child_id]:[]);const names=children.filter(c=>ids.includes(c.id)).map(c=>c.name);return html`<span>${this._t('assign.auto_to',{names:(names.length?names.join(', '):'—')})}</span>`;})():html`
+										<div class="multi-dd task-assign-dd" @click=${(e)=>{e.stopPropagation();const open=this._openAssignMenuFor===t.id?null:t.id;this._openAssignMenuFor=open;if(open){try{const box=e.currentTarget.querySelector('.box');const r=box.getBoundingClientRect();this._assignMenuStyle=`position:fixed;left:${Math.round(r.left)}px;top:${Math.round(r.bottom+4)}px;width:${Math.round(r.width)}px;z-index:200000`;}catch{this._assignMenuStyle='';}}else{this._assignMenuStyle='';}}} >
+											<div class="box"><span class="multi-dd-value placeholder">${this._t('select.assign_child')}</span><ha-icon icon="mdi:chevron-down"></ha-icon></div>
+											${this._openAssignMenuFor===t.id?html`
+												<div class="multi-dd-menu" style="${this._assignMenuStyle||''}" @click=${e=>e.stopPropagation()}>
+													${children.map(c=>html`<label><input class="c4k-assign" type="checkbox" value=${c.id} @change=${()=>this._updateAssignSummary(t.id,t)}/><span>${c.name}</span></label>`)}
+												</div>
+											`:''}
+										</div>
+									`}
+								</td>
+								<td data-label="${this._t('th.actions')}">
+									<button class="btn-ghost" @click=${()=>this._editAdmin2Task(t)}>${this._t('btn.edit')}</button>
+									<button class="btn-primary" ?disabled=${this._autoAssignActive(t)} title="${this._autoAssignActive(t)?this._t('assign.disabled_auto'):''}" @click=${()=>{
+										const row=this.shadowRoot.querySelector(`tr[data-task="${t.id}"]`);
+										const checkedNow=Array.from(row?.querySelectorAll('.c4k-assign:checked')||[]).map(i=>i.value);
+										const ids=(Array.isArray(t._assignToMulti)&&t._assignToMulti.length)?t._assignToMulti:checkedNow;
+										this._assignTaskMulti(t,ids);
+									}}>${this._t('btn.assign')}</button>
+									<button class="btn-danger" @click=${()=>this._deleteTask(t.id)}>${this._t('btn.delete')}</button>
+								</td>
+							</tr>
+						`)}
+					</tbody>
+				</table></div>
+			`:html`<i style="color:var(--secondary-text-color);">${this._t('overview.none')}</i>`}
+
+			<div class="section" style="margin-top:16px;">
+				<h3 class="h3-row">
+					<span class="collapsible" @click=${()=>this._toggleSection('a2categories')}>
+						<ha-icon class="chev ${this._isCollapsed('a2categories')?'rot':''}" icon="mdi:chevron-down"></ha-icon>
+						${this._t('section.categories')} (${(this._store.categories||[]).length})
+					</span>
+				</h3>
+				${this._isCollapsed('a2categories')?'':html`
+					<div class="row">
+						<input placeholder="${this._t('input.new_category_name')}" .value=${this._newCategoryName||''} @input=${(e)=>this._newCategoryName=e.target.value}/>
+						<div class="color-cell" style="flex:0 0 auto;">
+							<input type="color" .value=${this._colorInputValue(this._newCategoryColor)} @change=${(e)=>{this._newCategoryColor=e?.target?.value||'';}}/>
+						</div>
+						<button class="btn-ghost" @click=${this._addCategory}>${this._t('btn.add_category')}</button>
+					</div>
+					<div class="table-wrap"><table class="table-center">
+						<thead><tr><th>${this._t('th.name')}</th><th>${this._t('th.color')}</th><th>${this._t('th.actions')}</th></tr></thead>
+						<tbody>
+							${(this._store.categories||[]).map(cat=>html`
+								<tr>
+									<td data-label="${this._t('th.name')}">${cat.name}</td>
+									<td data-label="${this._t('th.color')}"><div class="color-cell"><input type="color" .value=${this._colorInputValue(cat?.color)} @change=${(e)=>this._setCategoryColor(cat,e)}/></div></td>
+									<td data-label="${this._t('th.actions')}">
+										<button class="btn-ghost" @click=${()=>this._promptRenameCategory(cat)}>${this._t('btn.rename')}</button>
+										<button class="btn-danger" @click=${()=>this._deleteCategory(cat)}>${this._t('btn.delete')}</button>
+									</td>
+								</tr>
+							`)}
+						</tbody>
+					</table></div>
+				`}
+			</div>
+		`;
+	}
+
+	_renderAdmin2Children(){
+		const { children } = this._store;
+		const pointsEnabled = this._pointsEnabled();
+		const showScoreboard = pointsEnabled && (this.config?.show_scoreboard !== false);
+		return html`
+			<div class="row">
+				<input placeholder="${this._t('input.new_child_name')}" .value=${this._name||''} @input=${(e)=>this._name=e.target.value}/>
+				<button class="btn-primary" @click=${this._addChild}>${this._t('btn.add_child')}</button>
+			</div>
+			<h3 class="h3-row" style="margin-top:12px;">
+				<span class="collapsible" @click=${()=>this._toggleSection('a2children')}>
+					<ha-icon class="chev ${this._isCollapsed('a2children')?'rot':''}" icon="mdi:chevron-down"></ha-icon>
+					${this._t('section.children')} (${children.length})
+				</span>
+			</h3>
+			${this._isCollapsed('a2children')?'':html`
+				<div class="table-wrap"><table class="table-center">
+					<thead><tr>
+						<th>${this._t('th.name')}</th>
+						${pointsEnabled?html`<th>${this._t('th.points')}</th>`:''}
+						<th>${this._t('th.pending')}</th>
+						<th>${this._t('th.actions')}</th>
+					</tr></thead>
+					<tbody>
+						${children.map(c=>html`
+							<tr>
+								<td data-label="${this._t('th.name')}">${c.name}</td>
+								${pointsEnabled?html`<td data-label="${this._t('th.points')}"><b>${c.points}</b></td>`:''}
+								<td data-label="${this._t('th.pending')}"><span class="badge status-awaiting_approval">${(c.tasks||[]).filter(t=>t.status==='awaiting_approval').length}</span></td>
+								<td data-label="${this._t('th.actions')}">
+									<button class="btn-ghost" @click=${()=>this._promptRename(c)}>${this._t('btn.rename')}</button>
+									${pointsEnabled?html`<button class="btn-ghost" @click=${()=>this._openPoints(c)}>${this._t('btn.add_points')}</button>`:''}
+									${pointsEnabled?html`<button class="btn-ghost" @click=${()=>this._resetPoints(c)}>${this._t('btn.reset_points')}</button>`:''}
+									<button class="btn-danger" @click=${()=>this._removeChild(c)}>${this._t('btn.delete')}</button>
+								</td>
+							</tr>
+						`)}
+					</tbody>
+				</table></div>
+			`}
+			${showScoreboard?html`
+				<hr/>
+				<h3 class="h3-row">
+					<span class="collapsible" @click=${()=>this._toggleSection('a2scoreboard')}>
+						<ha-icon class="chev ${this._isCollapsed('a2scoreboard')?'rot':''}" icon="mdi:chevron-down"></ha-icon>
+						${this._t('section.scoreboard')}
+					</span>
+				</h3>
+				${this._isCollapsed('a2scoreboard')?'':html`
+					<ol style="display:grid;gap:8px;padding-left:18px;">
+						${[...children].sort((a,b)=>b.points-a.points).map((c,i)=>html`
+							<li style="display:flex;align-items:center;gap:10px;"><span class="badge status-in_progress">#${i+1}</span><span style="flex:1;">${c.name}</span><b>${c.points}</b></li>
+						`)}
+					</ol>
+				`}
+			`:''}
+			${pointsEnabled?html`
+				<hr/>
+				<div class="row" style="align-items:center;margin-bottom:0;">
+					<h3 style="margin:0;flex:1;">${this._t('shop.title')}</h3>
+					<button class="btn-ghost" @click=${()=>this._shopModalOpen=true}>${this._t('shop.open')}</button>
+				</div>
+			`:''}
+		`;
+	}
+
+	_renderAdmin2Settings(){
+		const pointsEnabled = this._pointsEnabled();
+		const showScoreboard = pointsEnabled && (this.config?.show_scoreboard !== false);
+		const lang = c4kGetLangFromHass(this.hass);
+		const onLabel  = (this._t('ui.toggle_off_on').split('/')?.[1]||'On').trim();
+		const offLabel = (this._t('ui.toggle_off_on').split('/')?.[0]||'Off').trim();
+		return html`
+			<h3>${this._t('admin2.settings_title')}</h3>
+			<div class="admin2-setting-row">
+				<span class="admin2-setting-lbl">${this._t('editor.enable_points')}</span>
+				<span class="admin2-setting-val">
+					${pointsEnabled
+						? html`<span class="badge status-approved">✓ ${onLabel}</span>`
+						: html`<span class="badge status-rejected">${offLabel}</span>`}
+				</span>
+			</div>
+			<div class="admin2-setting-row">
+				<span class="admin2-setting-lbl">${this._t('section.scoreboard')}</span>
+				<span class="admin2-setting-val">
+					${showScoreboard
+						? html`<span class="badge status-approved">✓ ${onLabel}</span>`
+						: html`<span class="badge status-rejected">${offLabel}</span>`}
+				</span>
+			</div>
+			<div class="admin2-setting-row">
+				<span class="admin2-setting-lbl">${this._t('editor.mode')}</span>
+				<span class="admin2-setting-val"><code>admin-2</code></span>
+			</div>
+			<div class="admin2-setting-row">
+				<span class="admin2-setting-lbl">Language</span>
+				<span class="admin2-setting-val"><code>${lang}</code></span>
+			</div>
+			<div class="admin2-info-box">${this._t('admin2.settings_note')}</div>
+		`;
+	}
+
+	_renderAdmin2TaskModal(){
+		if (!this._taskModal2Open) return '';
+		const pointsEnabled = this._pointsEnabled();
+		const { children } = this._store;
+		const secs = this._admin2TaskSections || { options:true, repeat:true };
+		return html`
+			<div class="admin2-modal-overlay" @click=${(e)=>{ if(e.target===e.currentTarget) this._taskModal2Open=false; }}>
+				<div class="admin2-modal">
+					<div class="admin2-modal-header">
+						<h2 class="admin2-modal-title">${this._editingTask?this._t('btn.update_task'):this._t('btn.create_task')}</h2>
+						<button class="btn-ghost icon-btn" @click=${()=>this._taskModal2Open=false}><ha-icon icon="mdi:close"></ha-icon></button>
+					</div>
+
+					<!-- Basis -->
+					<div class="admin2-modal-section-body">
+						<div style="font-weight:600;font-size:.95rem;margin-bottom:10px;">${this._t('task_modal.section_basics')}</div>
+						<div class="row fields">
+							<div class="form-field">
+								<input class="${this._showTitleError?'invalid':''}" placeholder="${this._t('ph.title')}" .value=${this._taskTitle||''} @input=${e=>{this._taskTitle=e.target.value;this.requestUpdate();}}/>
+								<div class="error-space">${this._showTitleError?html`<span class="error-text">${this._t('err.title_required')}</span>`:''}</div>
+							</div>
+							${pointsEnabled?html`
+								<div class="form-field">
+									<input class="${this._showPointsError?'invalid':''}" type="number" placeholder="${this._t('ph.points')}" .value=${this._taskPoints||''} @input=${e=>{this._taskPoints=e.target.value;this.requestUpdate();}}/>
+									<div class="error-space">${this._pointsErrorKey?html`<span class="error-text">${this._t(this._pointsErrorKey)}</span>`:''}</div>
+								</div>
+							`:''}
+						</div>
+						<div class="row"><textarea rows="2" placeholder="${this._t('ph.description')}" .value=${this._taskDesc||''} @input=${e=>this._taskDesc=e.target.value}></textarea></div>
+						<div class="row">
+							<div class="multi-dd" @click=${(e)=>{e.stopPropagation();this._openCategoriesMenu=!this._openCategoriesMenu;}}>
+								<div class="box">
+									<span class="multi-dd-value ${this._taskCategories&&this._taskCategories.size?'':'placeholder'}">${(()=>{const ids=this._taskCategories||new Set();const names=(this._store.categories||[]).filter(c=>ids.has(c.id)).map(c=>c.name);return names.length?(names.slice(0,2).join(', ')+(names.length>2?` +${names.length-2}`:'')):this._t('select.categories');})()}</span>
+									<ha-icon icon="mdi:chevron-down"></ha-icon>
+								</div>
+								${this._openCategoriesMenu?html`
+									<div class="multi-dd-menu" @click=${e=>e.stopPropagation()}>
+										${(this._store.categories||[]).map(c=>html`<label><input type="checkbox" .checked=${this._taskCategories?.has?.(c.id)} @change=${(e)=>{const s=this._taskCategories instanceof Set?this._taskCategories:new Set(this._taskCategories||[]);e.target.checked?s.add(c.id):s.delete(c.id);this._taskCategories=s;this.requestUpdate();}}/><span>${c.name}</span></label>`)}
+									</div>
+								`:''}
+							</div>
+						</div>
+						<div class="row">
+							<button type="button" class="btn-ghost" @click=${()=>this._iconModalOpen=true}>${this._taskIcon?html`<ha-icon icon="${this._taskIcon}"></ha-icon> `:''} ${this._t('icon.choose')}</button>
+							${this._taskIcon?html`<button class="btn-ghost" @click=${()=>{this._taskIcon='';this.requestUpdate();}}>${this._t('icon.clear')}</button>`:''}
+						</div>
+					</div>
+
+					<!-- Opties (collapsible) -->
+					<div class="admin2-modal-section-header" @click=${()=>this._admin2TaskSections={...secs,options:!secs.options}}>
+						<ha-icon class="chev ${secs.options?'rot':''}" icon="mdi:chevron-down"></ha-icon>
+						${this._t('task_modal.section_options')}
+					</div>
+					${secs.options?'':html`
+						<div class="admin2-modal-section-body">
+							<div style="display:flex;flex-direction:column;gap:6px;padding:4px 0;">
+								${pointsEnabled?html`
+									<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+										<input style="margin:0;" type="checkbox" .checked=${!!this._taskEarlyBonusEnabled} @change=${e=>{this._taskEarlyBonusEnabled=!!e.target.checked;this.requestUpdate();}}/>
+										<span>${this._t('ui.early_bonus_enabled')}</span>
+									</label>
+									${this._taskEarlyBonusEnabled?html`
+										<div class="row fields" style="margin-left:24px;">
+											<div class="form-field"><input type="date" placeholder="${this._t('ph.due')}" ?disabled=${!!this._repeatEnabled||!!this._weeklyEnabled||!!this._monthlyEnabled} .value=${this._taskDue||''} @input=${e=>{this._taskDue=e.target.value;this.requestUpdate();}}/></div>
+											<div class="form-field"><input type="number" min="0" step="1" placeholder="${this._t('ph.early_bonus_days')}" .value=${this._taskEarlyBonusDays||''} @input=${e=>{this._taskEarlyBonusDays=e.target.value;this.requestUpdate();}}/></div>
+										</div>
+										<div class="row fields" style="margin-left:24px;">
+											<div class="form-field"><input type="number" min="0" step="1" placeholder="${this._t('ph.early_bonus_points')}" .value=${this._taskEarlyBonusPoints||''} @input=${e=>{this._taskEarlyBonusPoints=e.target.value;this.requestUpdate();}}/></div>
+											<div class="form-field"></div>
+										</div>
+									`:''}
+									<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+										<input style="margin:0;" type="checkbox" .checked=${!!this._taskBonusEnabled} @change=${e=>{this._taskBonusEnabled=!!e.target.checked;this.requestUpdate();}}/>
+										<span>${this._t('ui.bonus_task')}</span>
+									</label>
+									${this._taskBonusEnabled?html`
+										<div class="row fields" style="margin-left:24px;">
+											<div class="form-field"><input placeholder="${this._t('ph.bonus_title')}" .value=${this._taskBonusTitle||''} @input=${e=>{this._taskBonusTitle=e.target.value;this.requestUpdate();}}/></div>
+											<div class="form-field"><input type="number" min="0" step="1" placeholder="${this._t('ph.bonus_points')}" .value=${this._taskBonusPoints||''} @input=${e=>{this._taskBonusPoints=e.target.value;this.requestUpdate();}}/></div>
+										</div>
+									`:''}
+								`:''}
+								<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+									<input style="margin:0;" type="checkbox" .checked=${!!this._persistUntilDone} ?disabled=${!!this._weeklyEnabled||!!this._monthlyEnabled} @change=${e=>{this._persistUntilDone=!!e.target.checked;this._normalizeScheduleFlags();this.requestUpdate();}}/>
+									<span>${this._t('ui.persist_until_done')}</span>
+								</label>
+								${this._persistUntilDone?html`
+									<label style="display:flex;align-items:center;gap:8px;margin-left:24px;font-size:.9rem;">
+										<input style="margin:0;" type="checkbox" .checked=${this._markOverdue!==false} @change=${e=>{this._markOverdue=!!e.target.checked;this.requestUpdate();}}/>
+										<span>${this._t('ui.mark_overdue')}</span>
+									</label>
+								`:''}
+								<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+									<input style="margin:0;" type="checkbox" .checked=${!!this._quickComplete} @change=${e=>{this._quickComplete=!!e.target.checked;}}/>
+									<span>${this._t('ui.quick_complete')}</span>
+								</label>
+								<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+									<input style="margin:0;" type="checkbox" .checked=${!!this._skipApproval} @change=${e=>{this._skipApproval=!!e.target.checked;}}/>
+									<span>${this._t('ui.skip_approval')}</span>
+								</label>
+								<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+									<input style="margin:0;" type="checkbox" .checked=${!!this._fastestWins} @change=${e=>{this._fastestWins=!!e.target.checked;}}/>
+									<span>${this._t('ui.fastest_wins')}</span>
+								</label>
+							</div>
+						</div>
+					`}
+
+					<!-- Herhaling & schema (collapsible) -->
+					<div class="admin2-modal-section-header" @click=${()=>this._admin2TaskSections={...secs,repeat:!secs.repeat}}>
+						<ha-icon class="chev ${secs.repeat?'rot':''}" icon="mdi:chevron-down"></ha-icon>
+						${this._t('task_modal.section_repeat')}
+					</div>
+					${secs.repeat?'':html`
+						<div class="admin2-modal-section-body">
+							<div style="display:flex;flex-direction:column;gap:6px;padding:4px 0;">
+								<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+									<input style="margin:0;" type="checkbox" .checked=${!!this._repeatEnabled} ?disabled=${(!!this._weeklyEnabled||!!this._monthlyEnabled)&&!this._repeatEnabled} @change=${this._toggleRepeat}/>
+									<span>${this._t('repeat.enable')}</span>
+								</label>
+								${this._repeatEnabled?html`
+									<div style="margin-left:24px;">
+										<div style="font-size:.9rem;color:var(--secondary-text-color);margin-bottom:4px;">${this._t('repeat.label')}</div>
+										<div class="days">
+											${['mon','tue','wed','thu','fri','sat','sun'].map(k=>html`
+												<span class="day ${this._repeatDays.has(k)?'on':''}" @click=${()=>{const s=this._repeatDays;s.has(k)?s.delete(k):s.add(k);this.requestUpdate();}}>${this._t('repeat.days.'+k)}</span>
+											`)}
+										</div>
+									</div>
+								`:''}
+								<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+									<input style="margin:0;" type="checkbox" .checked=${!!this._weeklyEnabled} ?disabled=${!!this._persistUntilDone||((!!this._repeatEnabled||!!this._monthlyEnabled)&&!this._weeklyEnabled)} @change=${this._toggleWeekly}/>
+									<span>${this._t('schedule.weekly')}</span>
+								</label>
+								<label style="display:flex;align-items:center;gap:8px;font-size:.95rem;">
+									<input style="margin:0;" type="checkbox" .checked=${!!this._monthlyEnabled} ?disabled=${!!this._persistUntilDone||((!!this._repeatEnabled||!!this._weeklyEnabled)&&!this._monthlyEnabled)} @change=${this._toggleMonthly}/>
+									<span>${this._t('schedule.monthly')}</span>
+								</label>
+								${(this._repeatEnabled||this._weeklyEnabled||this._monthlyEnabled)?html`
+									<div>
+										<div style="font-size:.9rem;color:var(--secondary-text-color);margin-bottom:4px;">${this._t('repeat.auto_assign')}</div>
+										<div class="multi-dd" @click=${(e)=>{e.stopPropagation();this._openRepeatMenu=!this._openRepeatMenu;}}>
+											<div class="box">
+												<span class="multi-dd-value ${this._repeatAssign&&this._repeatAssign.size?'':'placeholder'}">${(()=>{const ids=this._repeatAssign||new Set();const names=children.filter(c=>ids.has(c.id)).map(c=>c.name);return names.length?(names.slice(0,2).join(', ')+(names.length>2?` +${names.length-2}`:'')):'—';})()}</span>
+												<ha-icon icon="mdi:chevron-down"></ha-icon>
+											</div>
+											${this._openRepeatMenu?html`
+												<div class="multi-dd-menu" @click=${e=>e.stopPropagation()}>
+													${children.map(c=>html`<label><input type="checkbox" .checked=${this._repeatAssign?.has?.(c.id)} @change=${(e)=>{const s=this._repeatAssign instanceof Set?this._repeatAssign:new Set(this._repeatAssign||[]);e.target.checked?s.add(c.id):s.delete(c.id);this._repeatAssign=s;this.requestUpdate();}}/><span>${c.name}</span></label>`)}
+												</div>
+											`:''}
+										</div>
+									</div>
+								`:''}
+							</div>
+						</div>
+					`}
+
+					<div class="admin2-modal-footer">
+						<button class="btn-ghost" @click=${()=>this._taskModal2Open=false}>${this._t('form.cancel')}</button>
+						<button class="btn-primary" ?disabled=${this._hasFormErrors} @click=${()=>this._admin2SaveTask()}>
+							${this._editingTask?this._t('btn.update_task'):this._t('btn.create_task')}
+						</button>
+					</div>
+				</div>
+			</div>
+		`;
+	}
+
+	_openAdmin2NewTask(){
+		this._editingTask=null;
+		this._taskTitle=''; this._taskPoints=''; this._taskDesc=''; this._taskIcon='';
+		this._taskDue=''; this._taskEarlyBonusDays=''; this._taskEarlyBonusPoints='';
+		this._taskEarlyBonusEnabled=false; this._taskBonusEnabled=false;
+		this._taskBonusTitle=''; this._taskBonusPoints='';
+		this._repeatDays=new Set(); this._repeatAssign=new Set();
+		this._repeatEnabled=false; this._weeklyEnabled=false; this._monthlyEnabled=false;
+		this._taskCategories=new Set(); this._markOverdue=true;
+		this._persistUntilDone=false; this._quickComplete=false;
+		this._skipApproval=false; this._fastestWins=false;
+		this._touchedTitle=false; this._touchedPoints=false;
+		this._taskModal2Open=true;
+	}
+
+	_editAdmin2Task(t){
+		this._editTask(t);
+		this._taskModal2Open=true;
+	}
+
+	async _admin2SaveTask(){
+		const pointsEnabled = this._pointsEnabled();
+		this._touchedTitle=true; this._touchedPoints=pointsEnabled; this.requestUpdate();
+		if (this._hasFormErrors) return;
+		if (this._editingTask){
+			await this._saveEditedTask();
+		} else {
+			await this._createTask();
+		}
+		this._taskModal2Open=false;
+	}
+
+	// ------- OVERVIEW-ONLY VIEW -------
 	_renderOverviewOnly(){
 		const pointsEnabled = this._pointsEnabled();
 		const all=(this._store.allTasks||[]).filter(t=>!!t.assigned_to && !['approved','awaiting_approval','taken'].includes(this._effectiveStatus(t)));
@@ -2471,7 +3103,7 @@ class Chores4KidsDevCard extends LitElement {
 						const parse=(x)=>{ try{ return x? new Date(x).getTime():0; }catch{return 0;} };
 						const sorted=this._sortTasks(all, true);
 						const top=sorted.slice(0,3); const pending=all.filter(t=>t.status==='awaiting_approval').length;
-						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:}
+						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:''}
 							<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 							${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 							<td data-label="${this._t('th.categories')}">${(()=>{ const ids=Array.isArray(t.categories)? t.categories:[]; const names=(this._store.categories||[]).filter(c=> ids.includes(c.id)).map(c=> c.name); return names.length? names.map(n=> html`<span class='chip'>${n}</span>`): html`—`; })()}</td>

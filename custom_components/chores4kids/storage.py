@@ -1675,27 +1675,37 @@ class KidsChoresStore:
                         except Exception:
                             pass
 
-                        await self.add_task(
-                            title=tpl["title"],
-                            points=tpl["points"],
-                            description=tpl["description"],
-                            assigned_to=target,
-                            icon=tpl.get("icon") or "",
-                            due=due_iso,
-                            repeat_template_id=tpl_id or None,
-                            early_bonus_enabled=tpl.get("early_bonus_enabled"),
-                            early_bonus_days=tpl.get("early_bonus_days"),
-                            early_bonus_points=tpl.get("early_bonus_points"),
-                            bonus_enabled=tpl.get("bonus_enabled"),
-                            bonus_title=tpl.get("bonus_title"),
-                            bonus_points=tpl.get("bonus_points"),
-                            persist_until_completed=(tpl.get("persist_until_completed", False) if mode in ("", "repeat") else False),
-                            quick_complete=tpl.get("quick_complete", False),
-                            skip_approval=tpl.get("skip_approval", False),
-                            categories=list(tpl.get("categories") or []),
-                            mark_overdue=tpl.get("mark_overdue", True),
-                            fastest_wins=bool(tpl.get("fastest_wins", False)),
-                        )
+                        try:
+                            await self.add_task(
+                                title=tpl["title"],
+                                points=tpl["points"],
+                                description=tpl["description"],
+                                assigned_to=target,
+                                icon=tpl.get("icon") or "",
+                                due=due_iso,
+                                repeat_template_id=tpl_id or None,
+                                early_bonus_enabled=tpl.get("early_bonus_enabled"),
+                                early_bonus_days=tpl.get("early_bonus_days"),
+                                early_bonus_points=tpl.get("early_bonus_points"),
+                                bonus_enabled=tpl.get("bonus_enabled"),
+                                bonus_title=tpl.get("bonus_title"),
+                                bonus_points=tpl.get("bonus_points"),
+                                persist_until_completed=(tpl.get("persist_until_completed", False) if mode in ("", "repeat") else False),
+                                quick_complete=tpl.get("quick_complete", False),
+                                skip_approval=tpl.get("skip_approval", False),
+                                categories=list(tpl.get("categories") or []),
+                                mark_overdue=tpl.get("mark_overdue", True),
+                                fastest_wins=bool(tpl.get("fastest_wins", False)),
+                            )
+                        except ValueError as exc:
+                            if "child_not_found" in str(exc):
+                                _LOGGER.warning(
+                                    "daily_rollover: skipping spawn for deleted child %r "
+                                    "(template %r title=%r)",
+                                    target, tpl_id, tpl.get("title"),
+                                )
+                            else:
+                                raise
 
             await self.async_save()
             self._last_rollover_local_date = today_key
