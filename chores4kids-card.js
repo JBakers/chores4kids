@@ -1869,7 +1869,10 @@ class Chores4KidsDevCard extends LitElement {
 	_orderedCategoryNames(ids){ const cats=this._store.categories||[]; const catMap=new Map(cats.map(c=>[c.id,c.name])); const clean=(ids||[]).filter(id=> catMap.has(id)); const sorted=[...clean].sort((a,b)=> this._catRankForId(a)-this._catRankForId(b)); return sorted.map(id=> catMap.get(id)); }
 
 	// ===== STORE =====
+	// Cached per hass reference – all _store calls within one render cycle return the same object.
 	get _store(){
+		if (this.__storeHass === this.hass && this.__storeCache) return this.__storeCache;
+		this.__storeHass = this.hass;
 		const states = this.hass?.states || {};
 		const children = Object.values(states)
 			.filter((s)=> s && s.entity_id?.startsWith('sensor.') && s.attributes?.child_id && (s.attributes?.slug !== undefined))
@@ -1884,7 +1887,8 @@ class Chores4KidsDevCard extends LitElement {
 		if (!shopSensor){ shopSensor = Object.values(states).find((s)=> s?.entity_id?.includes('chores4kids_shop')); if (shopSensor?.entity_id) this._idShop = shopSensor.entity_id; }
 		const items = shopSensor?.attributes?.items || [];
 		const purchases = shopSensor?.attributes?.purchases || [];
-		return { children, allTasks, items, purchases, categories };
+		this.__storeCache = { children, allTasks, items, purchases, categories };
+		return this.__storeCache;
 	}
 
 	// ===== RENDER =====
