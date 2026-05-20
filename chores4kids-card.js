@@ -1413,6 +1413,19 @@ class Chores4KidsDevCard extends LitElement {
 		}
 	}
 
+	shouldUpdate(changedProps){
+		// While any modal/overlay is open, suppress pure hass-tick re-renders.
+		// Each hass update forces GPU recompositing of the semi-transparent overlay
+		// on top of a fully re-rendered card — very expensive with many tasks.
+		// User-triggered state changes (buttons etc.) still pass through because
+		// they set additional reactive props alongside hass.
+		const anyModalOpen = this._tasksModalOpen || this._shopModalOpen ||
+			!!this._pointsChild || this._iconModalOpen || this._customIconModalOpen ||
+			!!this._advItem || this._sortModalOpen || !!this._reassignTask;
+		if (anyModalOpen && changedProps.size === 1 && changedProps.has('hass')) return false;
+		return true;
+	}
+
 	updated(changedProps){
 		// Ensure CSS variables follow both config changes and backend state updates.
 		if (changedProps?.has?.('hass') || changedProps?.has?.('config')){
@@ -2490,7 +2503,7 @@ class Chores4KidsDevCard extends LitElement {
 		return html`<div class="overlay ${this._tasksModalOpen?'open':''}" @click=${e=>{ if (e.target.classList.contains('overlay')) this._tasksModalOpen=false; }}>
 			${this._tasksModalOpen ? html`<div class="modal" style="max-width: 820px; width: min(95vw, 820px);" @click=${e=>e.stopPropagation()}>
 				<h3>${this._t('overview.title')}</h3>
-				<div style="max-height:60vh; overflow:visible;">
+				<div style="max-height:60vh; overflow-y:auto; overflow-x:hidden;">
 						<div class="table-wrap"><table class="table-center table-fixed">${this._renderAssignedFinishedColgroup()}
 							<thead><tr><th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
 						<tbody>${(()=>{
