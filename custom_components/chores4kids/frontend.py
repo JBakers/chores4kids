@@ -127,7 +127,9 @@ async def _ensure_js_in_www(hass: HomeAssistant) -> None:
     # Copy only if missing or changed
     if dst.exists():
         try:
-            if _sha256(src) == _sha256(dst):
+            src_hash = await hass.async_add_executor_job(_sha256, src)
+            dst_hash = await hass.async_add_executor_job(_sha256, dst)
+            if src_hash == dst_hash:
                 return
         except Exception:
             # If hashing fails for any reason, overwrite.

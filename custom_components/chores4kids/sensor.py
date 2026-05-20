@@ -206,6 +206,7 @@ class Chores4KidsAllTasksSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_name = "Chores4Kids Tasks"
     _attr_unique_id = "chores4kids_tasks_all"
+    _unrecorded_attributes = frozenset({"tasks", "categories"})
 
     def __init__(self, store: KidsChoresStore):
         self._store = store
