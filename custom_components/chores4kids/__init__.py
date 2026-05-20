@@ -6,11 +6,13 @@ from homeassistant.const import Platform
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import dt as dt_util
 
 import logging
+import voluptuous as vol
 
 from .const import DOMAIN, SIGNAL_CHILDREN_UPDATED, SIGNAL_DATA_UPDATED
 from .storage import KidsChoresStore
@@ -18,6 +20,136 @@ from .storage import KidsChoresStore
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+# ---------------------------------------------------------------------------
+# Service schemas (voluptuous hard validation)
+# ---------------------------------------------------------------------------
+_S = cv.string
+_I = vol.Coerce(int)
+_OS = vol.Any(None, cv.string)
+_OI = vol.Any(None, vol.Coerce(int))
+_OB = vol.Any(None, bool)
+_OL = vol.Any(None, list)
+
+_VALID_STATUSES = {"assigned", "in_progress", "awaiting_approval", "approved", "rejected"}
+
+_SCHEMA_ADD_CHILD = vol.Schema({vol.Required("name"): _S})
+_SCHEMA_RENAME_CHILD = vol.Schema({vol.Required("child_id"): _S, vol.Required("new_name"): _S})
+_SCHEMA_REMOVE_CHILD = vol.Schema({vol.Required("child_id"): _S})
+_SCHEMA_ADD_TASK = vol.Schema({
+    vol.Required("title"): _S,
+    vol.Required("points"): _I,
+    vol.Optional("description"): _OS,
+    vol.Optional("due"): _OS,
+    vol.Optional("early_bonus_enabled"): _OB,
+    vol.Optional("early_bonus_days"): _OI,
+    vol.Optional("early_bonus_points"): _OI,
+    vol.Optional("bonus_enabled"): _OB,
+    vol.Optional("bonus_title"): _OS,
+    vol.Optional("bonus_points"): _OI,
+    vol.Optional("child_id"): _OS,
+    vol.Optional("repeat_days"): _OL,
+    vol.Optional("repeat_child_id"): _OS,
+    vol.Optional("repeat_child_ids"): _OL,
+    vol.Optional("icon"): _OS,
+    vol.Optional("persist_until_completed"): _OB,
+    vol.Optional("quick_complete"): _OB,
+    vol.Optional("skip_approval"): _OB,
+    vol.Optional("categories"): _OL,
+    vol.Optional("fastest_wins"): _OB,
+    vol.Optional("schedule_mode"): _OS,
+    vol.Optional("mark_overdue"): _OB,
+})
+_SCHEMA_ASSIGN_TASK = vol.Schema({vol.Required("task_id"): _S, vol.Required("child_id"): _S})
+_SCHEMA_SET_TASK_STATUS = vol.Schema({
+    vol.Required("task_id"): _S,
+    vol.Required("status"): vol.In(_VALID_STATUSES),
+    vol.Optional("child_id"): _OS,
+    vol.Optional("completed_ts"): _OI,
+})
+_SCHEMA_APPROVE_TASK = vol.Schema({vol.Required("task_id"): _S, vol.Optional("child_id"): _OS})
+_SCHEMA_COMPLETE_BONUS = vol.Schema({vol.Required("task_id"): _S, vol.Optional("completed_ts"): _OI})
+_SCHEMA_APPROVE_BONUS = vol.Schema({vol.Required("task_id"): _S})
+_SCHEMA_DELETE_TASK = vol.Schema({vol.Required("task_id"): _S})
+_SCHEMA_UPDATE_TASK = vol.Schema({
+    vol.Required("task_id"): _S,
+    vol.Optional("title"): _OS,
+    vol.Optional("points"): _OI,
+    vol.Optional("description"): _OS,
+    vol.Optional("due"): _OS,
+    vol.Optional("early_bonus_enabled"): _OB,
+    vol.Optional("early_bonus_days"): _OI,
+    vol.Optional("early_bonus_points"): _OI,
+    vol.Optional("bonus_enabled"): _OB,
+    vol.Optional("bonus_title"): _OS,
+    vol.Optional("bonus_points"): _OI,
+    vol.Optional("icon"): _OS,
+    vol.Optional("persist_until_completed"): _OB,
+    vol.Optional("quick_complete"): _OB,
+    vol.Optional("skip_approval"): _OB,
+    vol.Optional("categories"): _OL,
+    vol.Optional("fastest_wins"): _OB,
+    vol.Optional("mark_overdue"): _OB,
+})
+_SCHEMA_RESET_POINTS = vol.Schema({vol.Optional("child_id"): _OS})
+_SCHEMA_ADD_POINTS = vol.Schema({vol.Required("child_id"): _S, vol.Required("points"): _I})
+_SCHEMA_SET_REPEAT = vol.Schema({
+    vol.Required("task_id"): _S,
+    vol.Optional("repeat_days"): _OL,
+    vol.Optional("repeat_child_id"): _OS,
+    vol.Optional("repeat_child_ids"): _OL,
+    vol.Optional("schedule_mode"): _OS,
+})
+_SCHEMA_SET_ICON = vol.Schema({vol.Required("task_id"): _S, vol.Optional("icon"): _OS})
+_SCHEMA_ADD_CATEGORY = vol.Schema({vol.Required("name"): _S, vol.Optional("color"): _OS})
+_SCHEMA_RENAME_CATEGORY = vol.Schema({vol.Required("category_id"): _S, vol.Required("new_name"): _S})
+_SCHEMA_DELETE_CATEGORY = vol.Schema({vol.Required("category_id"): _S})
+_SCHEMA_SET_CATEGORY_COLOR = vol.Schema({vol.Required("category_id"): _S, vol.Optional("color"): _OS})
+_SCHEMA_ADD_SHOP_ITEM = vol.Schema({
+    vol.Required("title"): _S,
+    vol.Required("price"): _I,
+    vol.Optional("icon"): _OS,
+    vol.Optional("image"): _OS,
+    vol.Optional("active"): _OB,
+    vol.Optional("actions"): _OL,
+})
+_SCHEMA_UPDATE_SHOP_ITEM = vol.Schema({
+    vol.Required("item_id"): _S,
+    vol.Optional("title"): _OS,
+    vol.Optional("price"): _OI,
+    vol.Optional("icon"): _OS,
+    vol.Optional("image"): _OS,
+    vol.Optional("active"): _OB,
+    vol.Optional("actions"): _OL,
+})
+_SCHEMA_DELETE_SHOP_ITEM = vol.Schema({vol.Required("item_id"): _S})
+_SCHEMA_BUY_SHOP_ITEM = vol.Schema({vol.Required("child_id"): _S, vol.Required("item_id"): _S})
+_SCHEMA_CLEAR_SHOP_HISTORY = vol.Schema({vol.Optional("child_id"): _OS})
+_SCHEMA_UPLOAD_IMAGE = vol.Schema({vol.Optional("filename"): _OS, vol.Required("data"): _S})
+_SCHEMA_DELETE_FILE = vol.Schema({vol.Required("filename"): _S})
+_SCHEMA_DEBUG_OVERDUE = vol.Schema({vol.Required("task_id"): _S})
+_SCHEMA_SET_UI_COLORS = vol.Schema({
+    vol.Optional("start_task_bg"): _OS,
+    vol.Optional("complete_task_bg"): _OS,
+    vol.Optional("kid_points_bg"): _OS,
+    vol.Optional("start_task_text"): _OS,
+    vol.Optional("complete_task_text"): _OS,
+    vol.Optional("kid_points_text"): _OS,
+    vol.Optional("task_done_bg"): _OS,
+    vol.Optional("task_done_text"): _OS,
+    vol.Optional("task_points_bg"): _OS,
+    vol.Optional("task_points_text"): _OS,
+    vol.Optional("kid_task_title_size"): _OS,
+    vol.Optional("kid_task_points_size"): _OS,
+    vol.Optional("kid_task_button_size"): _OS,
+    vol.Optional("enable_points"): _OB,
+    vol.Optional("confetti_enabled"): _OB,
+    vol.Optional("notify_service"): _OS,
+    vol.Optional("notify_services"): _OL,
+    vol.Optional("notify_service_settings"): vol.Any(None, dict),
+})
+_SCHEMA_PURGE_ORPHANS = vol.Schema({})
+_SCHEMA_DELETE_SOUND = vol.Schema({})
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -625,21 +757,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await store.clear_shop_history(call.data.get("child_id"))
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
-    hass.services.async_register(DOMAIN, "add_child", svc_add_child)
-    hass.services.async_register(DOMAIN, "rename_child", svc_rename_child)
-    hass.services.async_register(DOMAIN, "remove_child", svc_remove_child)
-    hass.services.async_register(DOMAIN, "add_task", svc_add_task)
-    hass.services.async_register(DOMAIN, "assign_task", svc_assign_task)
-    hass.services.async_register(DOMAIN, "set_task_status", svc_set_task_status)
-    hass.services.async_register(DOMAIN, "approve_task", svc_approve_task)
-    hass.services.async_register(DOMAIN, "complete_bonus_task", svc_complete_bonus_task)
-    hass.services.async_register(DOMAIN, "approve_bonus_task", svc_approve_bonus_task)
-    hass.services.async_register(DOMAIN, "delete_task", svc_delete_task)
-    hass.services.async_register(DOMAIN, "update_task", svc_update_task)
-    hass.services.async_register(DOMAIN, "reset_points", svc_reset_points)
-    hass.services.async_register(DOMAIN, "add_points", svc_add_points)
-    hass.services.async_register(DOMAIN, "set_task_repeat", svc_set_task_repeat)
-    hass.services.async_register(DOMAIN, "set_task_icon", svc_set_task_icon)
+    hass.services.async_register(DOMAIN, "add_child", svc_add_child, schema=_SCHEMA_ADD_CHILD)
+    hass.services.async_register(DOMAIN, "rename_child", svc_rename_child, schema=_SCHEMA_RENAME_CHILD)
+    hass.services.async_register(DOMAIN, "remove_child", svc_remove_child, schema=_SCHEMA_REMOVE_CHILD)
+    hass.services.async_register(DOMAIN, "add_task", svc_add_task, schema=_SCHEMA_ADD_TASK)
+    hass.services.async_register(DOMAIN, "assign_task", svc_assign_task, schema=_SCHEMA_ASSIGN_TASK)
+    hass.services.async_register(DOMAIN, "set_task_status", svc_set_task_status, schema=_SCHEMA_SET_TASK_STATUS)
+    hass.services.async_register(DOMAIN, "approve_task", svc_approve_task, schema=_SCHEMA_APPROVE_TASK)
+    hass.services.async_register(DOMAIN, "complete_bonus_task", svc_complete_bonus_task, schema=_SCHEMA_COMPLETE_BONUS)
+    hass.services.async_register(DOMAIN, "approve_bonus_task", svc_approve_bonus_task, schema=_SCHEMA_APPROVE_BONUS)
+    hass.services.async_register(DOMAIN, "delete_task", svc_delete_task, schema=_SCHEMA_DELETE_TASK)
+    hass.services.async_register(DOMAIN, "update_task", svc_update_task, schema=_SCHEMA_UPDATE_TASK)
+    hass.services.async_register(DOMAIN, "reset_points", svc_reset_points, schema=_SCHEMA_RESET_POINTS)
+    hass.services.async_register(DOMAIN, "add_points", svc_add_points, schema=_SCHEMA_ADD_POINTS)
+    hass.services.async_register(DOMAIN, "set_task_repeat", svc_set_task_repeat, schema=_SCHEMA_SET_REPEAT)
+    hass.services.async_register(DOMAIN, "set_task_icon", svc_set_task_icon, schema=_SCHEMA_SET_ICON)
     # Categories
     async def svc_add_category(call: ServiceCall):
         await store.add_category(call.data["name"], call.data.get("color", ""))
@@ -657,18 +789,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await store.set_category_color(call.data["category_id"], call.data.get("color", ""))
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
-    hass.services.async_register(DOMAIN, "add_category", svc_add_category)
-    hass.services.async_register(DOMAIN, "rename_category", svc_rename_category)
-    hass.services.async_register(DOMAIN, "delete_category", svc_delete_category)
-    hass.services.async_register(DOMAIN, "set_category_color", svc_set_category_color)
+    hass.services.async_register(DOMAIN, "add_category", svc_add_category, schema=_SCHEMA_ADD_CATEGORY)
+    hass.services.async_register(DOMAIN, "rename_category", svc_rename_category, schema=_SCHEMA_RENAME_CATEGORY)
+    hass.services.async_register(DOMAIN, "delete_category", svc_delete_category, schema=_SCHEMA_DELETE_CATEGORY)
+    hass.services.async_register(DOMAIN, "set_category_color", svc_set_category_color, schema=_SCHEMA_SET_CATEGORY_COLOR)
     # Shop
-    hass.services.async_register(DOMAIN, "add_shop_item", svc_add_shop_item)
-    hass.services.async_register(DOMAIN, "update_shop_item", svc_update_shop_item)
-    hass.services.async_register(DOMAIN, "delete_shop_item", svc_delete_shop_item)
-    hass.services.async_register(DOMAIN, "buy_shop_item", svc_buy_shop_item)
-    hass.services.async_register(DOMAIN, "clear_shop_history", svc_clear_shop_history)
+    hass.services.async_register(DOMAIN, "add_shop_item", svc_add_shop_item, schema=_SCHEMA_ADD_SHOP_ITEM)
+    hass.services.async_register(DOMAIN, "update_shop_item", svc_update_shop_item, schema=_SCHEMA_UPDATE_SHOP_ITEM)
+    hass.services.async_register(DOMAIN, "delete_shop_item", svc_delete_shop_item, schema=_SCHEMA_DELETE_SHOP_ITEM)
+    hass.services.async_register(DOMAIN, "buy_shop_item", svc_buy_shop_item, schema=_SCHEMA_BUY_SHOP_ITEM)
+    hass.services.async_register(DOMAIN, "clear_shop_history", svc_clear_shop_history, schema=_SCHEMA_CLEAR_SHOP_HISTORY)
     # Backwards/alias
-    hass.services.async_register(DOMAIN, "reset_shop_history", svc_clear_shop_history)
+    hass.services.async_register(DOMAIN, "reset_shop_history", svc_clear_shop_history, schema=_SCHEMA_CLEAR_SHOP_HISTORY)
 
     # Upload images for shop items into /config/www/chores4kids
     async def svc_upload_shop_image(call: ServiceCall):
@@ -692,7 +824,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.async_add_executor_job(_write)
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
-    hass.services.async_register(DOMAIN, 'upload_shop_image', svc_upload_shop_image)
+    hass.services.async_register(DOMAIN, 'upload_shop_image', svc_upload_shop_image, schema=_SCHEMA_UPLOAD_IMAGE)
 
     async def svc_delete_uploaded_file(call: ServiceCall):
         """Delete a previously uploaded file from /config/www/chores4kids.
@@ -726,7 +858,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise ValueError('delete_failed') from ex
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
-    hass.services.async_register(DOMAIN, 'delete_uploaded_file', svc_delete_uploaded_file)
+    hass.services.async_register(DOMAIN, 'delete_uploaded_file', svc_delete_uploaded_file, schema=_SCHEMA_DELETE_FILE)
 
     async def svc_delete_completion_sound(call: ServiceCall):
         """Delete completion sound files from /config/www/chores4kids.
@@ -769,7 +901,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
-    hass.services.async_register(DOMAIN, 'delete_completion_sound', svc_delete_completion_sound)
+    hass.services.async_register(DOMAIN, 'delete_completion_sound', svc_delete_completion_sound, schema=_SCHEMA_DELETE_SOUND)
 
     async def svc_debug_mark_overdue(call: ServiceCall):
         """DEBUG: Manually mark a task as overdue for testing."""
@@ -784,7 +916,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await store.async_save()
             async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
-    hass.services.async_register(DOMAIN, 'debug_mark_overdue', svc_debug_mark_overdue)
+    hass.services.async_register(DOMAIN, 'debug_mark_overdue', svc_debug_mark_overdue, schema=_SCHEMA_DEBUG_OVERDUE)
 
     # Global UI colors (shared across devices/users)
     async def svc_set_ui_colors(call: ServiceCall):
@@ -810,7 +942,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
-    hass.services.async_register(DOMAIN, "set_ui_colors", svc_set_ui_colors)
+    hass.services.async_register(DOMAIN, "set_ui_colors", svc_set_ui_colors, schema=_SCHEMA_SET_UI_COLORS)
 
     async def svc_purge_orphans(call: ServiceCall):
         """Fjern forældreløse entiteter/devices fra tidligere versioner."""
@@ -864,7 +996,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if not has_entities:
                 dev_registry.async_remove_device(device.id)
 
-    hass.services.async_register(DOMAIN, "purge_orphans", svc_purge_orphans)
+    hass.services.async_register(DOMAIN, "purge_orphans", svc_purge_orphans, schema=_SCHEMA_PURGE_ORPHANS)
 
     # Schedule midnight rollover and run once on startup
     async def _midnight_cb(now):

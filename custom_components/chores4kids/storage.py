@@ -5,12 +5,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 from uuid import uuid4
+import logging
 import os
 import asyncio
 import unicodedata
 import re
 
 from .const import STORAGE_KEY, STORAGE_VERSION
+
+_LOGGER = logging.getLogger(__name__)
 
 STATUS_ASSIGNED = "assigned"
 STATUS_IN_PROGRESS = "in_progress"
@@ -1382,6 +1385,7 @@ class KidsChoresStore:
         from datetime import datetime
 
         if self._rollover_running:
+            _LOGGER.debug("daily_rollover: already running, skipping")
             return
         self._rollover_running = True
         try:
@@ -1389,6 +1393,7 @@ class KidsChoresStore:
             today = now.date()
             today_key = today.isoformat()
             if self._last_rollover_local_date == today_key:
+                _LOGGER.debug("daily_rollover: already ran for %s, skipping", today_key)
                 return
             weekday = now.weekday()  # 0=Mon..6=Sun
 
@@ -1444,10 +1449,17 @@ class KidsChoresStore:
                 except Exception:
                     return None
 
+            _LOGGER.debug(
+                "daily_rollover: starting for %s — tasks_before=%d templates_captured=%d",
+                today_key, len(self.tasks), len(templates),
+            )
+
             # 1) Roll/clean older tasks with rules:
             #    - NEVER remove unassigned template tasks (assigned_to is empty)
             #    - Only carry tasks forward when persist_until_completed is true and task is not approved.
             kept: list[Task] = []
+            removed_count = 0
+            carried_count = 0
             for t in self.tasks:
                 is_template = not (getattr(t, "assigned_to", None) and str(getattr(t, "assigned_to", "")).strip())
                 if is_template:
@@ -1466,11 +1478,17 @@ class KidsChoresStore:
                         t.created = _dt.now(_tz.utc).isoformat()
                         t.carried_over = True
                         kept.append(t)
+                        carried_count += 1
                     else:
+                        removed_count += 1
                         continue
                 else:
                     kept.append(t)
             self.tasks = kept
+            _LOGGER.debug(
+                "daily_rollover: cleanup done — kept=%d removed=%d carried_over=%d",
+                len(kept), removed_count, carried_count,
+            )
 
             # 2) Auto-create today's repeated tasks from captured templates
             # Prefer using repeat_template_id to detect existing active instances (more robust than title/date).
@@ -1620,6 +1638,13 @@ class KidsChoresStore:
 
             await self.async_save()
             self._last_rollover_local_date = today_key
+            _LOGGER.debug(
+                "daily_rollover: complete for %s — tasks_after=%d",
+                today_key, len(self.tasks),
+            )
+        except Exception:
+            _LOGGER.exception("daily_rollover: unexpected error for %s", today_key)
+            raise
         finally:
             self._rollover_running = False
 

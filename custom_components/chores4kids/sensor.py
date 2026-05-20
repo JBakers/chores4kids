@@ -18,16 +18,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     all_tasks_sensor: Chores4KidsAllTasksSensor | None = None
     shop_sensor: Chores4KidsShopSensor | None = None
     ui_sensor: Chores4KidsUiSensor | None = None
+    # Guard: child IDs whose cleanup task is already in-flight.  Prevents double-removal
+    # when _sync_entities fires again before the async cleanup coroutine has finished.
+    _cleaning: set[str] = set()
 
     async def _cleanup_removed_entities(removed_ids: set[str]):
         registry = er.async_get(hass)
         dev_registry = dr.async_get(hass)
         for rid in removed_ids:
             ent = entities.pop(rid, None)
+            _cleaning.discard(rid)
             if ent is None:
                 continue
             # Remove entity from state machine
-            await ent.async_remove()
+            try:
+                await ent.async_remove()
+            except Exception:
+                pass
             # Remove from entity registry to avoid leftover 'unavailable' restored entities
             reg_entry = registry.async_get(ent.entity_id)
             device_id = reg_entry.device_id if reg_entry else None
@@ -46,7 +53,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         # Add missing children sensors
         for ch in store.children:
             key = ch.id
-            if key not in entities:
+            if key not in entities and key not in _cleaning:
                 ent = KidsChoresPointsSensor(store, ch.id)
                 entities[key] = ent
                 async_add_entities([ent])
@@ -66,10 +73,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         if ui_sensor is None:
             ui_sensor = Chores4KidsUiSensor(store)
             async_add_entities([ui_sensor])
-        # Remove sensors for deleted children (runtime removal + registry/device cleanup)
+        # Remove sensors for deleted children (runtime removal + registry/device cleanup).
+        # Exclude IDs already scheduled for cleanup to prevent concurrent double-removal.
         current_ids = {c.id for c in store.children}
-        removed_ids = set(entities.keys()) - current_ids
+        removed_ids = (set(entities.keys()) - current_ids) - _cleaning
         if removed_ids:
+            _cleaning.update(removed_ids)
             hass.async_create_task(_cleanup_removed_entities(removed_ids))
 
         # Purge orphan registry entries from older versions (slug-based unique_ids)
@@ -97,8 +106,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     @callback
     def _handle_data_updated():
-        for ent in entities.values():
-            ent.async_schedule_update_ha_state(True)
+        for child_id, ent in entities.items():
+            if child_id not in _cleaning:
+                ent.async_schedule_update_ha_state(True)
         if all_tasks_sensor is not None:
             all_tasks_sensor.async_schedule_update_ha_state(True)
         if shop_sensor is not None:
