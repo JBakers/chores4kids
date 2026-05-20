@@ -66,7 +66,7 @@ const C4K_I18N = {
 		'status.overdue':'Overdue','overdue.reassign_prompt':'This task is also scheduled for today. Assign it again?','overdue.yes':'Yes, assign again','overdue.no':'No thanks',
 		'debug.mark_overdue':'[TEST] Mark overdue',
 		// Shop
-		'shop.title':'Point shop','shop.open':'Open shop','shop.item':'Item','shop.price':'Price','shop.icon':'Icon','shop.image':'Image','shop.upload':'Upload image','shop.add_item':'Add item','shop.history':'Purchase history','shop.child':'Child','shop.when':'When','shop.date':'Date','shop.time':'Time','shop.advanced':'Advanced actions','shop.entity':'Entity','shop.operation':'Operation','shop.add_action':'Add action','shop.add_delay':'Add delay','shop.steps':'Steps','shop.seconds':'Seconds','shop.minutes':'Minutes','shop.hours':'Hours','shop.delay':'Delay','shop.active':'Active','shop.buy':'Buy','shop.bought':'Bought','shop.clear_history':'Clear history','confirm.clear_history':'Clear all purchase history?',
+		'shop.title':'Point shop','shop.open':'Open shop','shop.item':'Item','shop.price':'Price','shop.icon':'Icon','shop.image':'Image','shop.upload':'Upload image','shop.add_item':'Add item','shop.history':'Purchase history','shop.child':'Child','shop.when':'When','shop.date':'Date','shop.time':'Time','shop.advanced':'Advanced actions','shop.entity':'Entity','shop.operation':'Operation','shop.add_action':'Add action','shop.add_delay':'Add delay','shop.steps':'Steps','shop.seconds':'Seconds','shop.minutes':'Minutes','shop.hours':'Hours','shop.delay':'Delay','shop.active':'Active','shop.buy':'Buy','shop.bought':'Bought','shop.clear_history':'Clear history','confirm.clear_history':'Clear all purchase history?','shop.sort_az':'Sort A–Z','shop.visible_to':'Visible to','shop.all_children':'All children',
 		// Child specific
 		'card.child_title_fallback': 'Chores4Kids – {name}',
 		'msg.child_not_found': 'Child not found. Check the name in card configuration.',
@@ -368,6 +368,9 @@ const C4K_I18N = {
 			'shop.minutes':'Minuten',
 			'shop.hours':'Uren',
 			'shop.delay':'Vertraging',
+			'shop.sort_az':'Sorteren A–Z',
+			'shop.visible_to':'Zichtbaar voor',
+			'shop.all_children':'Alle kinderen',
 			'sort.configure':'Sorteren',
 			'sort.title':'Kies volgorde',
 			'sort.categories_order':'Categorievolgorde',
@@ -964,7 +967,7 @@ class Chores4KidsDevCard extends LitElement {
 			_taskBonusEnabled: { state: true }, _taskBonusTitle: { state: true }, _taskBonusPoints: { state: true },
 			_repeatEnabled: { state: true }, _weeklyEnabled: { state: true }, _monthlyEnabled: { state: true }, _repeatAssign: { state: true }, _persistUntilDone: { state: true }, _markOverdue: { state: true }, _quickComplete: { state: true }, _skipApproval: { state: true }, _fastestWins: { state: true }, _editingTask: { state: true }, _tasksModalOpen: { state: true },
 			_customIconModalOpen: { state: true }, _customIconSearch: { state: true }, _customIconPreview: { state: true }, _customIconLabel: { state: true },
-			_shopModalOpen: { state: true }, _shopTitle: { state: true }, _shopPrice: { state: true }, _shopImage: { state: true }, _editItem: { state: true }, _advItem: { state: true },
+			_shopModalOpen: { state: true }, _shopTitle: { state: true }, _shopPrice: { state: true }, _shopImage: { state: true }, _editItem: { state: true }, _advItem: { state: true }, _shopVisibleIds: { state: true },
 			// UI for nicer multi-assign dropdown
 			_openAssignMenuFor: { state: true }, _assignMenuStyle: { state: true },
 			_openRepeatMenu: { state: true },
@@ -2554,21 +2557,36 @@ class Chores4KidsDevCard extends LitElement {
 					</div>
 					<button class="btn-primary" style="flex:0 0 auto;" @click=${this._addShopItem}>${this._t('shop.add_item')}</button>
 				</div>
-								<div class="table-wrap desktop-only"><table class="table-center">
-					<thead><tr><th>${this._t('shop.item')}</th><th>${this._t('shop.price')}</th><th>${this._t('shop.active')}</th><th>${this._t('th.actions')}</th></tr></thead>
+				<div class="row" style="justify-content:flex-end; gap:8px; margin-bottom:4px;">
+					<button class="btn-ghost" @click=${()=>this._sortShopAZ()}>${this._t('shop.sort_az')}</button>
+				</div>
+				<div class="table-wrap desktop-only"><table class="table-center">
+					<thead><tr><th style="width:28px;"></th><th>${this._t('shop.item')}</th><th>${this._t('shop.price')}</th><th>${this._t('shop.visible_to')}</th><th>${this._t('shop.active')}</th><th>${this._t('th.actions')}</th></tr></thead>
 					<tbody>
-						${this._store.items.map(i=> html`
+						${this._store.items.map((i,idx)=> html`
 							${this._editItem && this._editItem.id===i.id ? html`
 								<tr>
+									<td></td>
 									<td data-label="${this._t('shop.item')}"><div style="display:flex; align-items:center; gap:8px;">${this._editItem.image? html`<img class="img-preview" style="width:36px;height:36px;" src="${this._resolveUrl(this._editItem.image)}" loading="lazy" decoding="async">`:''}<input style="max-width:220px;" .value=${this._editItem.title||''} @input=${e=> this._editItem={...this._editItem, title:e.target.value}} /><input type="file" accept="image/*" @change=${this._onPickEditImage} /></div></td>
 									<td data-label="${this._t('shop.price')}"><input type="number" style="max-width:120px;" .value=${this._editItem.price||0} @input=${e=> this._editItem={...this._editItem, price:Number(e.target.value||0)}} /></td>
+									<td data-label="${this._t('shop.visible_to')}" style="min-width:160px;">
+										<div style="display:flex;flex-direction:column;gap:3px;">
+											${(this._store.children||[]).map(c=> html`<label style="display:flex;align-items:center;gap:5px;font-size:.85rem;"><input type="checkbox" .checked=${!(this._editItem.visible_to_child_ids||[]).length || (this._editItem.visible_to_child_ids||[]).includes(c.id)} @change=${e=>{ const cur=Array.isArray(this._editItem.visible_to_child_ids)?[...this._editItem.visible_to_child_ids]:[]; if(e.target.checked){ if(!cur.includes(c.id)) cur.push(c.id); }else{ const idx2=cur.indexOf(c.id); if(idx2>=0) cur.splice(idx2,1); } this._editItem={...this._editItem, visible_to_child_ids: cur}; this.requestUpdate(); }} />${c.name}</label>`)}
+										</div>
+									</td>
 									<td data-label="${this._t('shop.active')}"><input type="checkbox" .checked=${this._editItem.active!==false} @change=${e=> this._editItem={...this._editItem, active: e.target.checked}} /></td>
 									<td data-label="${this._t('th.actions')}"><button class="btn-primary" @click=${this._saveEditItem}>${this._t('form.save')}</button><button class="btn-ghost" @click=${()=>{this._editItem=null; this.requestUpdate();}}>${this._t('form.cancel')}</button></td>
 								</tr>
 							`: html`
-								<tr>
+								<tr draggable="true"
+									@dragstart=${e=>{ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', String(idx)); }}
+									@dragover=${e=>{ e.preventDefault(); e.currentTarget.classList.add('dragover'); }}
+									@dragleave=${e=> e.currentTarget.classList.remove('dragover')}
+									@drop=${e=>{ e.preventDefault(); e.currentTarget.classList.remove('dragover'); const from=Number(e.dataTransfer.getData('text/plain')); if(!Number.isFinite(from)||from===idx) return; this._reorderShopDrop(from,idx); }}>
+									<td style="cursor:grab;color:var(--secondary-text-color);padding:0 4px;">⋮⋮</td>
 									<td data-label="${this._t('shop.item')}">${i.image? html`<img class="img-preview" style="width:36px;height:36px;margin-right:6px;vertical-align:middle;" src="${this._resolveUrl(i.image)}" loading="lazy" decoding="async">`:''}${i.title}</td>
 									<td data-label="${this._t('shop.price')}"><b>${i.price}</b></td>
+									<td data-label="${this._t('shop.visible_to')}" style="font-size:.82rem;color:var(--secondary-text-color);">${(()=>{ const vis=i.visible_to_child_ids||[]; if(!vis.length) return this._t('shop.all_children'); return (this._store.children||[]).filter(c=>vis.includes(c.id)).map(c=>c.name).join(', ')||this._t('shop.all_children'); })()}</td>
 									<td data-label="${this._t('shop.active')}"><input type="checkbox" .checked=${i.active!==false} @change=${e=> this._toggleItemActive(i,e)} /></td>
 									<td data-label="${this._t('th.actions')}"><button class="btn-ghost" @click=${()=> this._startEditItem(i)}>${this._t('btn.edit')}</button><button class="btn-ghost" @click=${()=> this._openAdvanced(i)}>${this._t('shop.advanced')}</button><button class="btn-danger" @click=${()=>this._deleteShopItem(i.id)}>${this._t('btn.delete')}</button></td>
 								</tr>
@@ -2576,34 +2594,39 @@ class Chores4KidsDevCard extends LitElement {
 						`)}
 					</tbody>
 				</table></div>
-								<!-- Mobile cards for items -->
-								<div class="mobile-only mobile-only-grid">
-									${this._store.items.map(i=> html`
-										<div class="shop-admin-card">
-											<div class="shop-admin-head">
-												${i.image? html`<img src="${this._resolveUrl(i.image)}" alt="${i.title}" loading="lazy" decoding="async">` : html`<div class="img-preview" style="width:44px;height:44px;display:grid;place-items:center;">?</div>`}
-												<div class="shop-admin-meta">
-													<div class="shop-admin-title">${i.title}</div>
-													<div class="shop-admin-price">${i.price}</div>
-												</div>
-																								<label class="shop-admin-toggle">
-																									<span>${this._t('shop.active')}</span>
-																									<ha-switch .checked=${i.active!==false} @change=${e=> this._toggleItemActive(i,e)}></ha-switch>
-																								</label>
-											</div>
-											<div class="shop-admin-actions">
-												<button class="btn-ghost" @click=${()=> this._startEditItem(i)}>${this._t('btn.edit')}</button>
-												<button class="btn-ghost" @click=${()=> this._openAdvanced(i)}>${this._t('shop.advanced')}</button>
-												<button class="btn-danger" @click=${()=> this._deleteShopItem(i.id)}>${this._t('btn.delete')}</button>
-											</div>
-										</div>
-									`)}
+				<!-- Mobile cards for items -->
+				<div class="mobile-only mobile-only-grid">
+					${this._store.items.map((i,idx)=> html`
+						<div class="shop-admin-card" draggable="true"
+							@dragstart=${e=>{ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', String(idx)); }}
+							@dragover=${e=>{ e.preventDefault(); e.currentTarget.classList.add('dragover'); }}
+							@dragleave=${e=> e.currentTarget.classList.remove('dragover')}
+							@drop=${e=>{ e.preventDefault(); e.currentTarget.classList.remove('dragover'); const from=Number(e.dataTransfer.getData('text/plain')); if(!Number.isFinite(from)||from===idx) return; this._reorderShopDrop(from,idx); }}>
+							<div class="shop-admin-head">
+								<span style="cursor:grab;color:var(--secondary-text-color);font-size:1.2rem;margin-right:4px;">⋮⋮</span>
+								${i.image? html`<img src="${this._resolveUrl(i.image)}" alt="${i.title}" loading="lazy" decoding="async">` : html`<div class="img-preview" style="width:44px;height:44px;display:grid;place-items:center;">?</div>`}
+								<div class="shop-admin-meta">
+									<div class="shop-admin-title">${i.title}</div>
+									<div class="shop-admin-price">${i.price}</div>
 								</div>
+								<label class="shop-admin-toggle">
+									<span>${this._t('shop.active')}</span>
+									<ha-switch .checked=${i.active!==false} @change=${e=> this._toggleItemActive(i,e)}></ha-switch>
+								</label>
+							</div>
+							<div class="shop-admin-actions">
+								<button class="btn-ghost" @click=${()=> this._startEditItem(i)}>${this._t('btn.edit')}</button>
+								<button class="btn-ghost" @click=${()=> this._openAdvanced(i)}>${this._t('shop.advanced')}</button>
+								<button class="btn-danger" @click=${()=> this._deleteShopItem(i.id)}>${this._t('btn.delete')}</button>
+							</div>
+						</div>
+					`)}
+				</div>
 				<div class="row" style="align-items:center; justify-content:space-between; margin-top:12px;">
 					<h3 style="margin:0;">${this._t('shop.history')}</h3>
 					${(this._store.purchases||[]).length ? html`<button class="btn-danger" @click=${this._clearShopHistory}>${this._t('shop.clear_history')}</button>`:''}
 				</div>
-								<div class="table-wrap desktop-only"><table class="table-center">
+				<div class="table-wrap desktop-only"><table class="table-center">
 					<thead><tr><th>${this._t('shop.date')}</th><th>${this._t('shop.time')}</th><th>${this._t('shop.child')}</th><th>${this._t('shop.item')}</th><th>${this._t('shop.price')}</th></tr></thead>
 					<tbody>
 						${[...(this._store.purchases||[])].slice().reverse().map(p=> { const dt=this._fmtDateTime(p.ts); return html`<tr>
@@ -3035,7 +3058,11 @@ class Chores4KidsDevCard extends LitElement {
 		// shop items
 		let shopSensor = this._idShop && this.hass.states[this._idShop];
 		if (!shopSensor){ shopSensor = Object.values(this.hass.states).find(st=> st?.entity_id?.includes('chores4kids_shop')); if (shopSensor?.entity_id) this._idShop = shopSensor.entity_id; }
-		const items = (pointsEnabled && this._shopOpen) ? (shopSensor?.attributes?.items||[]).filter(i=> i.active!==false) : [];
+		const items = (pointsEnabled && this._shopOpen) ? (shopSensor?.attributes?.items||[]).filter(i=> {
+			if(i.active===false) return false;
+			const vis = Array.isArray(i.visible_to_child_ids) ? i.visible_to_child_ids : [];
+			return vis.length===0 || vis.includes(childData?.id);
+		}) : [];
 
 		const renderTaskGroups = (taskList)=>{
 			if (taskList.length===0) return html`<i>${this._t('msg.no_tasks')}</i>`;
@@ -3687,10 +3714,23 @@ class Chores4KidsDevCard extends LitElement {
 		}
 	}
 	async _onPickImage(e){ if(!this._pointsEnabled()) return; const f=e.target?.files?.[0]; if(!f) return; const reader=new FileReader(); reader.onload= async ()=>{ try{ const dataUrl=reader.result; const ext=(f.name.split('.').pop()||'jpg').toLowerCase(); const name=`c4k_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`; await this.hass.callService('chores4kids','upload_shop_image',{ filename:name, data:String(dataUrl) }); this._shopImage=`/local/chores4kids/${name}`; } finally { this.requestUpdate(); } }; reader.readAsDataURL(f); }
-	_startEditItem(i){ this._editItem={ id:i.id, title:i.title, price:i.price, image:i.image||'', active:i.active!==false }; this.requestUpdate(); }
+	_startEditItem(i){ this._editItem={ id:i.id, title:i.title, price:i.price, image:i.image||'', active:i.active!==false, visible_to_child_ids: Array.isArray(i.visible_to_child_ids) ? [...i.visible_to_child_ids] : [] }; this.requestUpdate(); }
 	async _onPickEditImage(e){ if(!this._pointsEnabled()) return; const f=e.target?.files?.[0]; if(!f) return; const reader=new FileReader(); reader.onload= async ()=>{ const dataUrl=reader.result; const ext=(f.name.split('.').pop()||'jpg').toLowerCase(); const name=`c4k_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`; await this.hass.callService('chores4kids','upload_shop_image',{ filename:name, data:String(dataUrl) }); this._editItem={ ...this._editItem, image:`/local/chores4kids/${name}` }; this.requestUpdate(); }; reader.readAsDataURL(f); }
-	async _saveEditItem(){ if(!this._pointsEnabled()) return; const it=this._editItem; if(!it) return; await this.hass.callService('chores4kids','update_shop_item',{ item_id: it.id, title:String(it.title||'').trim(), price:Number(it.price||0), image: it.image||'', active: !!it.active }); this._editItem=null; this.requestUpdate(); }
+	async _saveEditItem(){ if(!this._pointsEnabled()) return; const it=this._editItem; if(!it) return; await this.hass.callService('chores4kids','update_shop_item',{ item_id: it.id, title:String(it.title||'').trim(), price:Number(it.price||0), image: it.image||'', active: !!it.active, visible_to_child_ids: Array.isArray(it.visible_to_child_ids) ? it.visible_to_child_ids : [] }); this._editItem=null; this.requestUpdate(); }
 	async _toggleItemActive(i,e){ if(!this._pointsEnabled()) return; const active=!!e.target.checked; await this.hass.callService('chores4kids','update_shop_item',{ item_id: i.id, active }); }
+	async _reorderShopDrop(fromIdx, toIdx){
+		if(!this._pointsEnabled()) return;
+		const items = [...(this._store.items||[])];
+		if(fromIdx<0||fromIdx>=items.length||toIdx<0||toIdx>=items.length) return;
+		const [moved] = items.splice(fromIdx,1);
+		items.splice(toIdx,0,moved);
+		await this.hass.callService('chores4kids','reorder_shop_items',{ item_ids: items.map(i=>i.id) });
+	}
+	async _sortShopAZ(){
+		if(!this._pointsEnabled()) return;
+		const items = [...(this._store.items||[])].sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
+		await this.hass.callService('chores4kids','reorder_shop_items',{ item_ids: items.map(i=>i.id) });
+	}
 	_openAdvanced(i){ if(!this._pointsEnabled()) return; try{ const shop=Object.values(this.hass.states).find(s=> s?.entity_id?.includes('chores4kids_shop')); const latest=shop?.attributes?.items?.find?.((x)=> x.id===i.id); this._advItem=latest||i; }catch{ this._advItem=i; } const steps=Array.isArray(this._advItem.actions)? JSON.parse(JSON.stringify(this._advItem.actions)) : []; this._advSteps=steps.map(st=>{ const t=String(st?.type||'').toLowerCase(); if(t==='service'){ const ent=st.entity_id || st.data?.entity_id || ''; const op=st.service || st.op; return { type:'entity_service', entity_id: ent, op }; } if(t==='entity_service'){ return { type:'entity_service', entity_id: st.entity_id||'', op: st.op||st.service }; } if(t==='delay'){ return { type:'delay', seconds: Number(st.seconds||st.secs||0) }; } return st; }); this.requestUpdate(); }
 	_defaultOpFor(entity_id){ const dom=(entity_id||'').split('.')[0]; const ops=this._opsForDomain(dom); return ops[0]||'turn_on'; }
 	_opsForDomain(dom){ switch(dom){ case 'switch': case 'light': case 'fan': case 'input_boolean': return ['turn_on','turn_off','toggle']; case 'media_player': return ['turn_on','turn_off','media_play','media_pause','toggle']; case 'lock': return ['lock','unlock']; default: return ['turn_on','turn_off']; } }

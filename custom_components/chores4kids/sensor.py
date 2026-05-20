@@ -352,6 +352,7 @@ class Chores4KidsShopSensor(SensorEntity):
                 if c.id == cid:
                     return c.name
             return None
+        sorted_items = sorted(self._store.items, key=lambda i: getattr(i, 'sort_order', 0))
         items = [{
             "id": i.id,
             "title": i.title,
@@ -360,7 +361,9 @@ class Chores4KidsShopSensor(SensorEntity):
             "image": getattr(i, 'image', ''),
             "active": i.active,
             "actions": getattr(i, 'actions', []),
-        } for i in self._store.items]
+            "visible_to_child_ids": list(getattr(i, 'visible_to_child_ids', []) or []),
+            "sort_order": getattr(i, 'sort_order', 0),
+        } for i in sorted_items]
         purchases = [{
             "id": p.id,
             "child_id": p.child_id,

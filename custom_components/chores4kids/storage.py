@@ -782,11 +782,25 @@ class KidsChoresStore:
                     repeat_template_id = t.id
             except Exception:
                 repeat_template_id = None
+            # For scheduled templates, compute the next occurrence as due date
+            # instead of using the template's own (likely stale or None) due field.
+            computed_due = t.due
+            if repeat_template_id:
+                try:
+                    _today = dt_util.now().date()
+                    if mode == "monthly":
+                        computed_due = self._next_monthly_due_iso(_today, include_today=True)
+                    else:
+                        _rdays = [0] if mode == "weekly" else list(getattr(t, "repeat_days", []) or [])
+                        if _rdays:
+                            computed_due = self._next_repeat_due_iso(_today, _rdays, include_today=True)
+                except Exception:
+                    pass
             await self.add_task(
                 title=t.title,
                 points=t.points,
                 description=t.description,
-                due=t.due,
+                due=computed_due,
                 assigned_to=child_id,
                 repeat_template_id=repeat_template_id,
                 icon=t.icon,
@@ -959,14 +973,52 @@ class KidsChoresStore:
         # provide a completion timestamp.
         if completed_ts is None and status != STATUS_AWAITING:
             t.completed_ts = None
+
+        def _clear_fw_claims(task: Task):
+            """Clear fastest-wins claim on a task and all its sibling copies."""
+            if not bool(getattr(task, "fastest_wins", False)):
+                return
+            task.fastest_wins_claimed_by_child_id = None
+            task.fastest_wins_claimed_by_child_name = None
+            task.fastest_wins_claimed_ts = None
+            tpl_id = getattr(task, "fastest_wins_template_id", None)
+            day = _local_created_date(task)
+            for other in self.tasks:
+                if other.id == task.id:
+                    continue
+                if not bool(getattr(other, "fastest_wins", False)):
+                    continue
+                if not getattr(other, "assigned_to", None):
+                    continue
+                if tpl_id:
+                    if getattr(other, "fastest_wins_template_id", None) != tpl_id:
+                        continue
+                elif day is not None and _local_created_date(other) != day:
+                    continue
+                other.fastest_wins_claimed_by_child_id = None
+                other.fastest_wins_claimed_by_child_name = None
+                other.fastest_wins_claimed_ts = None
+
         # If a task is sent "back" to assigned, consider it (re)assigned today
         # so it appears as a current task for the child, regardless of original day.
         if status == STATUS_ASSIGNED:
             from datetime import datetime, timezone
             t.created = datetime.now(timezone.utc).isoformat()
+            t.approved_at = None
+            t.carried_over = False
             t.bonus_completed_ts = None
             t.bonus_approved = False
             t.bonus_approved_at = None
+            _clear_fw_claims(t)
+        # When a task is rejected, clear ephemeral state so a re-attempt or
+        # re-assignment starts clean (no leftover timestamps or claim locks).
+        elif status == STATUS_REJECTED:
+            t.approved_at = None
+            t.carried_over = False
+            t.bonus_completed_ts = None
+            t.bonus_approved = False
+            t.bonus_approved_at = None
+            _clear_fw_claims(t)
         await self.async_save()
 
     def _add_earned_points(self, child: Child, earned: int) -> None:
@@ -1599,6 +1651,15 @@ class KidsChoresStore:
 
                 if should_spawn:
                     tpl_id = str(tpl.get("id") or "")
+                    # Compute due date for this occurrence dynamically (don't use stale template due).
+                    if mode in ("", "repeat"):
+                        due_iso = self._next_repeat_due_iso(today, list(rdays), include_today=True)
+                    elif mode == "weekly":
+                        due_iso = self._next_repeat_due_iso(today, [0], include_today=True)
+                    elif mode == "monthly":
+                        due_iso = self._next_monthly_due_iso(today, include_today=True)
+                    else:
+                        due_iso = None
                     for target in targets:
                         if not target:
                             continue
@@ -1620,7 +1681,7 @@ class KidsChoresStore:
                             description=tpl["description"],
                             assigned_to=target,
                             icon=tpl.get("icon") or "",
-                            due=tpl.get("due"),
+                            due=due_iso,
                             repeat_template_id=tpl_id or None,
                             early_bonus_enabled=tpl.get("early_bonus_enabled"),
                             early_bonus_days=tpl.get("early_bonus_days"),
@@ -1663,18 +1724,23 @@ class KidsChoresStore:
         await self.async_save()
 
     # --- Shop API ---
-    async def add_shop_item(self, title: str, price: int, icon: Optional[str] = None, image: Optional[str] = None, active: bool = True, actions: Optional[List[Dict[str, Any]]] = None):
+    async def add_shop_item(self, title: str, price: int, icon: Optional[str] = None, image: Optional[str] = None, active: bool = True, actions: Optional[List[Dict[str, Any]]] = None, visible_to_child_ids: Optional[List[str]] = None, sort_order: Optional[int] = None):
         sid = str(uuid4())
+        # Default sort_order: append after the current last item.
+        if sort_order is None:
+            sort_order = max((getattr(i, "sort_order", 0) for i in self.items), default=-1) + 1
         it = ShopItem(id=sid, title=str(title).strip(), price=int(price), icon=(icon or "").strip(), image=(image or "").strip(), active=bool(active))
         try:
             it.actions = self._normalize_actions(actions or [])
         except Exception:
             it.actions = []
+        it.visible_to_child_ids = [str(x) for x in (visible_to_child_ids or []) if x]
+        it.sort_order = int(sort_order)
         self.items.append(it)
         await self.async_save()
         return it
 
-    async def update_shop_item(self, item_id: str, title: Optional[str] = None, price: Optional[int] = None, icon: Optional[str] = None, image: Optional[str] = None, active: Optional[bool] = None, actions: Optional[List[Dict[str, Any]]] = None):
+    async def update_shop_item(self, item_id: str, title: Optional[str] = None, price: Optional[int] = None, icon: Optional[str] = None, image: Optional[str] = None, active: Optional[bool] = None, actions: Optional[List[Dict[str, Any]]] = None, visible_to_child_ids: Optional[List[str]] = None, sort_order: Optional[int] = None):
         it = self._get_item(item_id)
         if title is not None:
             it.title = str(title).strip()
@@ -1691,8 +1757,29 @@ class KidsChoresStore:
                 it.actions = self._normalize_actions(actions)
             except Exception:
                 it.actions = []
+        if visible_to_child_ids is not None:
+            it.visible_to_child_ids = [str(x) for x in visible_to_child_ids if x]
+        if sort_order is not None:
+            it.sort_order = int(sort_order)
         await self.async_save()
         return it
+
+    async def reorder_shop_items(self, item_ids: List[str]):
+        """Reorder shop items to match the provided id list and persist sort_order."""
+        id_index = {iid: idx for idx, iid in enumerate(item_ids)}
+        # Assign sort_order to items present in item_ids; leave unlisted items at the end.
+        max_idx = len(item_ids)
+        for item in self.items:
+            if item.id in id_index:
+                item.sort_order = id_index[item.id]
+            else:
+                item.sort_order = max_idx
+                max_idx += 1
+        # Reorder in-memory list to match provided order (stable for unlisted items).
+        listed = {iid for iid in item_ids}
+        ordered = sorted(self.items, key=lambda i: id_index.get(i.id, len(item_ids) + self.items.index(i)))
+        self.items = ordered
+        await self.async_save()
 
     async def delete_shop_item(self, item_id: str):
         # capture the item and its image before removing
@@ -1939,6 +2026,10 @@ class ShopItem:
     image: str = ""
     active: bool = True
     actions: List[Dict[str, Any]] = field(default_factory=list)
+    # Empty list = visible to all children; non-empty = only show to listed child ids.
+    visible_to_child_ids: List[str] = field(default_factory=list)
+    # Manual display order (ascending). Assigned on creation and after reorder_shop_items.
+    sort_order: int = 0
 
 @dataclass
 class Purchase:

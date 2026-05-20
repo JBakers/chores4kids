@@ -112,6 +112,8 @@ _SCHEMA_ADD_SHOP_ITEM = vol.Schema({
     vol.Optional("image"): _OS,
     vol.Optional("active"): _OB,
     vol.Optional("actions"): _OL,
+    vol.Optional("visible_to_child_ids"): _OL,
+    vol.Optional("sort_order"): _OI,
 })
 _SCHEMA_UPDATE_SHOP_ITEM = vol.Schema({
     vol.Required("item_id"): _S,
@@ -121,7 +123,10 @@ _SCHEMA_UPDATE_SHOP_ITEM = vol.Schema({
     vol.Optional("image"): _OS,
     vol.Optional("active"): _OB,
     vol.Optional("actions"): _OL,
+    vol.Optional("visible_to_child_ids"): _OL,
+    vol.Optional("sort_order"): _OI,
 })
+_SCHEMA_REORDER_SHOP_ITEMS = vol.Schema({vol.Required("item_ids"): list})
 _SCHEMA_DELETE_SHOP_ITEM = vol.Schema({vol.Required("item_id"): _S})
 _SCHEMA_BUY_SHOP_ITEM = vol.Schema({vol.Required("child_id"): _S, vol.Required("item_id"): _S})
 _SCHEMA_CLEAR_SHOP_HISTORY = vol.Schema({vol.Optional("child_id"): _OS})
@@ -728,6 +733,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             image=call.data.get("image"),
             active=bool(call.data.get("active", True)),
             actions=call.data.get("actions"),
+            visible_to_child_ids=call.data.get("visible_to_child_ids"),
+            sort_order=call.data.get("sort_order"),
         )
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
@@ -740,7 +747,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             image=call.data.get("image"),
             active=call.data.get("active"),
             actions=call.data.get("actions"),
+            visible_to_child_ids=call.data.get("visible_to_child_ids"),
+            sort_order=call.data.get("sort_order"),
         )
+        async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
+
+    async def svc_reorder_shop_items(call: ServiceCall):
+        await store.reorder_shop_items(list(call.data["item_ids"]))
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
     async def svc_delete_shop_item(call: ServiceCall):
@@ -796,6 +809,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Shop
     hass.services.async_register(DOMAIN, "add_shop_item", svc_add_shop_item, schema=_SCHEMA_ADD_SHOP_ITEM)
     hass.services.async_register(DOMAIN, "update_shop_item", svc_update_shop_item, schema=_SCHEMA_UPDATE_SHOP_ITEM)
+    hass.services.async_register(DOMAIN, "reorder_shop_items", svc_reorder_shop_items, schema=_SCHEMA_REORDER_SHOP_ITEMS)
     hass.services.async_register(DOMAIN, "delete_shop_item", svc_delete_shop_item, schema=_SCHEMA_DELETE_SHOP_ITEM)
     hass.services.async_register(DOMAIN, "buy_shop_item", svc_buy_shop_item, schema=_SCHEMA_BUY_SHOP_ITEM)
     hass.services.async_register(DOMAIN, "clear_shop_history", svc_clear_shop_history, schema=_SCHEMA_CLEAR_SHOP_HISTORY)
