@@ -1450,6 +1450,26 @@ class KidsChoresStore:
                 return
             weekday = now.weekday()  # 0=Mon..6=Sun
 
+            # Data repair (v3.2.6): clear due from spawned daily task instances.
+            # Prior to v3.2.6, rollover and assign_task set due=today on daily
+            # repeat tasks, causing them to show under "Weekly tasks" in the card.
+            # Only weekly/monthly tasks should carry a due date.
+            _repaired = 0
+            for _t in self.tasks:
+                if not getattr(_t, "assigned_to", None):
+                    continue
+                if not getattr(_t, "repeat_template_id", None):
+                    continue
+                _mode = str(getattr(_t, "schedule_mode", "") or "").strip().lower()
+                if _mode in ("weekly", "monthly"):
+                    continue
+                if getattr(_t, "due", None) is not None:
+                    _t.due = None
+                    _repaired += 1
+            if _repaired:
+                _LOGGER.debug("daily_rollover: cleared stale due from %d daily task instance(s)", _repaired)
+                await self.async_save()
+
             # Capture scheduled templates BEFORE cleanup so we don't lose the plan
             templates = []
             for t in self.tasks:
