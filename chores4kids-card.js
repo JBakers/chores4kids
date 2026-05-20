@@ -41,7 +41,8 @@ const C4K_I18N = {
 		'section.tasks_per_child': 'Tasks per child',
 		'btn.start': 'Start', 'btn.back': 'Reassign', 'btn.awaiting': 'Awaiting', 'btn.approve': 'Approve', 'btn.approve_bonus': 'Approve bonus', 'btn.approve_all': 'Approve all', 'btn.approve_partial': 'Partial approve', 'lbl.approved': 'Approved',
 		'section.scoreboard': 'Scoreboard',
-		'confirm.delete_child': 'Delete {name}?', 'confirm.delete_task': 'Delete task?',
+		'confirm.delete_child': 'Delete {name}?', 'confirm.delete_task': 'Delete task?', 'confirm.bulk_delete': 'Delete {n} task(s)?',
+		'bulk.toggle': 'Multi-select', 'bulk.n_selected': '{n} selected', 'bulk.assign': 'Assign', 'bulk.delete': 'Delete selected', 'bulk.cancel': 'Cancel',
 		'alert.choose_child_first': 'Choose a child first',
 		'ui.auto_recycle': 'Auto recycle approved tasks',
 		'ui.quick_complete': 'One-tap completion',
@@ -288,7 +289,8 @@ const C4K_I18N = {
 			'lbl.approved':'Goedgekeurd',
 			'section.scoreboard':'Scorebord',
 			'confirm.delete_child':'{name} verwijderen?',
-			'confirm.delete_task':'Taak verwijderen?',
+			'confirm.delete_task':'Taak verwijderen?', 'confirm.bulk_delete':'{n} taak/taken verwijderen?',
+			'bulk.toggle':'Meerdere selecteren', 'bulk.n_selected':'{n} geselecteerd', 'bulk.assign':'Toewijzen', 'bulk.delete':'Geselecteerde verwijderen', 'bulk.cancel':'Annuleren',
 			'alert.choose_child_first':'Kies eerst een kind',
 			'ui.auto_recycle':'Goedgekeurde taken automatisch opnieuw aanmaken',
 			'ui.quick_complete':'Snel voltooien (een tik)',
@@ -977,6 +979,8 @@ class Chores4KidsDevCard extends LitElement {
 			_shopOpen: { state: true },
 			// Sorting/categories order
 			_sortModalOpen: { state: true }, _catOrder: { state: true },
+			// Bulk select
+			_bulkMode: { state: true }, _bulkSelected: { state: true }, _bulkChildIds: { state: true }, _bulkChildMenuOpen: { state: true },
 			// Task description view
 			_viewingTaskDesc: { state: true }
 		};
@@ -1001,6 +1005,10 @@ class Chores4KidsDevCard extends LitElement {
 		.btn-danger { background: var(--error-color, #d32f2f); color:#fff; border-color: transparent; }
 		.btn-ghost { background: transparent; }
 		.icon-btn{ padding:4px 6px; border-radius:8px; min-height:auto; }
+		.icon-btn.active{ background: color-mix(in srgb, var(--primary-color) 18%, transparent); color: var(--primary-color); }
+		.bulk-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 12px; margin:4px 0 8px; border-radius:10px; background: color-mix(in srgb, var(--primary-color) 8%, transparent); border:1px solid var(--divider-color); }
+		.bulk-bar .bulk-count{ font-weight:600; flex:0 0 auto; margin-right:4px; }
+		.bulk-bar .bulk-dd{ position:relative; min-width:150px; flex:1 1 150px; max-width:240px; }
 		button:disabled { opacity:.55; cursor:not-allowed; }
 		input:not([type="checkbox"]):not([type="radio"]), select, textarea { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); box-sizing:border-box; font: inherit; }
 		input[type="checkbox"], input[type="radio"]{ width:auto; padding:0; margin:0; border:0; border-radius:0; background:transparent; box-sizing:border-box; }
@@ -1309,6 +1317,10 @@ class Chores4KidsDevCard extends LitElement {
 		this._editItem = null; this._advItem = null; this._advSteps = [];
 		this._touchedTitle = false; this._touchedPoints = false;
 		this._openAssignMenuFor = null;
+		this._bulkMode = false;
+		this._bulkSelected = new Set();
+		this._bulkChildIds = new Set();
+		this._bulkChildMenuOpen = false;
 		this._openRepeatMenu = false;
 		this._persistUntilDone = false;
 		this._markOverdue = true;
@@ -1421,7 +1433,7 @@ class Chores4KidsDevCard extends LitElement {
 		// they set additional reactive props alongside hass.
 		const anyModalOpen = this._tasksModalOpen || this._shopModalOpen ||
 			!!this._pointsChild || this._iconModalOpen || this._customIconModalOpen ||
-			!!this._advItem || this._sortModalOpen || !!this._reassignTask;
+			!!this._advItem || this._sortModalOpen || !!this._reassignTask || this._bulkMode;
 		if (anyModalOpen && changedProps.size === 1 && changedProps.has('hass')) return false;
 		return true;
 	}
@@ -2272,12 +2284,24 @@ class Chores4KidsDevCard extends LitElement {
 					<h3 class="h3-row">
 						<span class="collapsible" @click=${()=>this._toggleSection('tasks')}><ha-icon class="chev ${this._isCollapsed('tasks')?'rot':''}" icon="mdi:chevron-down"></ha-icon>${this._t('section.tasks')}</span>
 						<button class="btn-ghost icon-btn" title="${this._t('sort.configure')}" @click=${()=> this._sortModalOpen = true}><ha-icon icon="mdi:sort-variant"></ha-icon></button>
+						<button class="btn-ghost icon-btn ${this._bulkMode?'active':''}" title="${this._t('bulk.toggle')}" @click=${()=>{ this._bulkMode=!this._bulkMode; if(!this._bulkMode){ this._bulkSelected=new Set(); this._bulkChildIds=new Set(); this._bulkChildMenuOpen=false; } }}><ha-icon icon="mdi:checkbox-multiple-outline"></ha-icon></button>
 					</h3>
+					${this._bulkMode ? html`<div class="bulk-bar" @click=${e=>e.stopPropagation()}>
+						<span class="bulk-count">${this._t('bulk.n_selected',{n:this._bulkSelected.size})}</span>
+						<div class="bulk-dd multi-dd" @click=${(e)=>{ e.stopPropagation(); this._bulkChildMenuOpen=!this._bulkChildMenuOpen; this.requestUpdate(); }}>
+							<div class="box"><span class="multi-dd-value ${this._bulkChildIds.size?'':'placeholder'}">${(()=>{ const names=this._store.children.filter(c=>this._bulkChildIds.has(c.id)).map(c=>c.name); return names.length?(names.slice(0,2).join(', ')+(names.length>2?` +${names.length-2}`:'')):this._t('select.assign_child'); })()}</span><ha-icon icon="mdi:chevron-down"></ha-icon></div>
+							${this._bulkChildMenuOpen?html`<div class="multi-dd-menu" @click=${e=>e.stopPropagation()}>${this._store.children.map(c=>html`<label><input type="checkbox" .checked=${this._bulkChildIds.has(c.id)} @change=${(e)=>{ const s=new Set(this._bulkChildIds); e.target.checked?s.add(c.id):s.delete(c.id); this._bulkChildIds=s; this.requestUpdate(); }}/><span>${c.name}</span></label>`)}</div>`:''}
+						</div>
+						<button class="btn-primary" ?disabled=${!this._bulkChildIds.size||!this._bulkSelected.size} @click=${()=>this._bulkAssignSelected()}>${this._t('bulk.assign')}</button>
+						<button class="btn-danger" ?disabled=${!this._bulkSelected.size} @click=${()=>this._bulkDeleteSelected()}>${this._t('bulk.delete')}</button>
+						<button class="btn-ghost" @click=${()=>{ this._bulkMode=false; this._bulkSelected=new Set(); this._bulkChildIds=new Set(); this._bulkChildMenuOpen=false; }}>${this._t('bulk.cancel')}</button>
+					</div>` : ''}
 					${this._isCollapsed('tasks')? '' : html`<div class="table-wrap"><table class="table-center">
-						<thead><tr><th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th class="assign-col">${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
+						<thead><tr>${this._bulkMode?html`<th style="width:28px;"></th>`:''}<th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th class="assign-col">${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
 						<tbody @click=${()=>{ this._openAssignMenuFor = null; this._assignMenuStyle=''; }}>
 										${this._sortTasks(this._store.allTasks.filter(t=>!t.assigned_to), false).map(t=> html`
 								<tr data-task="${t.id}">
+									${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:''}
 									<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 								${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 									<td data-label="${this._t('th.categories')}">
@@ -2324,7 +2348,7 @@ class Chores4KidsDevCard extends LitElement {
 						if(!active.length) return html`<i>${this._t('overview.none_active')}</i>`;
 						const sorted=this._sortTasks(active, true);
 						const top=sorted.slice(0,3); const pending=allAssigned.filter(t=>t.status==='awaiting_approval').length;
-						const row=(t)=> html`<tr>
+						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:}
 							<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 							${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 							<td data-label="${this._t('th.categories')}">${(()=>{ const ids=Array.isArray(t.categories)? t.categories:[]; const names=this._orderedCategoryNames(ids); return names.length? names.map(n=> html`<span class='chip'>${n}</span>`): html`—`; })()}</td>
@@ -2346,7 +2370,7 @@ class Chores4KidsDevCard extends LitElement {
 						</tr>`;
 						return html`
 							<div class="table-wrap"><table class="table-center table-fixed">${this._renderAssignedFinishedColgroup()}
-								<thead><tr><th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
+								<thead><tr>${this._bulkMode?html`<th style="width:28px;"></th>`:''}  <th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
 								<tbody>${top.map(row)}</tbody>
 							</table></div>
 							<div class="row" style="justify-content:flex-end;">${active.length>3? html`<button class="btn-primary" @click=${()=>this._tasksModalOpen=true}>${this._t('overview.show_all',{pending})}</button>`:''}</div>
@@ -2361,7 +2385,7 @@ class Chores4KidsDevCard extends LitElement {
 						const awaiting=allAssigned.filter(t=>this._effectiveStatus(t)==='awaiting_approval');
 						if(!awaiting.length) return html`<i>${this._t('overview.none_active')}</i>`;
 						const sorted=this._sortTasks(awaiting, true);
-						const row=(t)=> html`<tr>
+						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:}
 							<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 							${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 							<td data-label="${this._t('th.categories')}">${(()=>{ const ids=Array.isArray(t.categories)? t.categories:[]; const names=this._orderedCategoryNames(ids); return names.length? names.map(n=> html`<span class='chip'>${n}</span>`): html`—`; })()}</td>
@@ -2374,7 +2398,7 @@ class Chores4KidsDevCard extends LitElement {
 						</tr>`;
 						return html`
 							<div class="table-wrap"><table class="table-center table-fixed">${this._renderAssignedFinishedColgroup()}
-								<thead><tr><th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
+								<thead><tr>${this._bulkMode?html`<th style="width:28px;"></th>`:''}  <th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
 								<tbody>${sorted.map(row)}</tbody>
 							</table></div>
 						`;
@@ -2388,7 +2412,7 @@ class Chores4KidsDevCard extends LitElement {
 						const finished=allAssigned.filter(t=>['approved','taken'].includes(this._effectiveStatus(t)));
 						if(!finished.length) return html`<i>${this._t('overview.finished_none')}</i>`;
 						const sorted=this._sortTasks(finished, true);
-						const row=(t)=> html`<tr>
+						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:}
 							<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 							${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 							<td data-label="${this._t('th.categories')}">${(()=>{ const ids=Array.isArray(t.categories)? t.categories:[]; const names=this._orderedCategoryNames(ids); return names.length? names.map(n=> html`<span class='chip'>${n}</span>`): html`—`; })()}</td>
@@ -2407,7 +2431,7 @@ class Chores4KidsDevCard extends LitElement {
 						</tr>`;
 						return html`
 							<div class="table-wrap"><table class="table-center table-fixed">${this._renderAssignedFinishedColgroup()}
-								<thead><tr><th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
+								<thead><tr>${this._bulkMode?html`<th style="width:28px;"></th>`:''}  <th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
 								<tbody>${sorted.map(row)}</tbody>
 							</table></div>
 						`;
@@ -2447,7 +2471,7 @@ class Chores4KidsDevCard extends LitElement {
 						const parse=(x)=>{ try{ return x? new Date(x).getTime():0; }catch{return 0;} };
 						const sorted=this._sortTasks(all, true);
 						const top=sorted.slice(0,3); const pending=all.filter(t=>t.status==='awaiting_approval').length;
-						const row=(t)=> html`<tr>
+						const row=(t)=> html`<tr>${this._bulkMode?html`<td style="width:28px;vertical-align:middle;text-align:center;"><input type="checkbox" .checked=${this._bulkSelected.has(t.id)} @change=${(e)=>{ const s=new Set(this._bulkSelected); e.target.checked?s.add(t.id):s.delete(t.id); this._bulkSelected=s; }} /></td>`:}
 							<td data-label="${this._t('ph.title')}">${t.title}${String(t?.bonus_title||'').trim() ? ` • ${this._t('lbl.bonus')}: ${String(t?.bonus_title||'').trim()}` : ''}${t.icon? html` <ha-icon class="inline-ico" icon="${t.icon}"></ha-icon>`:''}</td>
 							${pointsEnabled ? html`<td data-label="${this._t('ph.points')}"><b>${t.points}</b></td>`:''}
 							<td data-label="${this._t('th.categories')}">${(()=>{ const ids=Array.isArray(t.categories)? t.categories:[]; const names=(this._store.categories||[]).filter(c=> ids.includes(c.id)).map(c=> c.name); return names.length? names.map(n=> html`<span class='chip'>${n}</span>`): html`—`; })()}</td>
@@ -2470,7 +2494,7 @@ class Chores4KidsDevCard extends LitElement {
 						</tr>`;
 						return html`
 							<div class="table-wrap"><table class="table-center">
-								<thead><tr><th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
+								<thead><tr>${this._bulkMode?html`<th style="width:28px;"></th>`:''}  <th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
 								<tbody>${top.map(row)}</tbody>
 							</table></div>
 							<div class="row" style="justify-content:flex-end;">${all.length>3? html`<button class="btn-primary" @click=${()=>this._tasksModalOpen=true}>${this._t('overview.show_all',{pending})}</button>`:''}</div>
@@ -2505,7 +2529,7 @@ class Chores4KidsDevCard extends LitElement {
 				<h3>${this._t('overview.title')}</h3>
 				<div style="max-height:60vh; overflow-y:auto; overflow-x:hidden;">
 						<div class="table-wrap"><table class="table-center table-fixed">${this._renderAssignedFinishedColgroup()}
-							<thead><tr><th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
+							<thead><tr>${this._bulkMode?html`<th style="width:28px;"></th>`:''}  <th>${this._t('ph.title')}</th>${pointsEnabled ? html`<th>${this._t('ph.points')}</th>`:''}<th>${this._t('th.categories')}</th><th>${this._t('th.status')}</th><th>${this._t('th.completed')}</th><th>${this._t('th.assign')}</th><th>${this._t('th.actions')}</th></tr></thead>
 						<tbody>${(()=>{
 							const all=(this._store.allTasks||[]).filter(t=>!!t.assigned_to && !['approved','awaiting_approval','taken'].includes(this._effectiveStatus(t)));
 							const parse=(x)=>{ try{ return x? new Date(x).getTime():0; }catch{return 0;} };
@@ -3567,6 +3591,40 @@ class Chores4KidsDevCard extends LitElement {
 				}
 			}catch{}
 		}, 500);
+	}
+
+	async _bulkAssignSelected(){
+		const childIds = [...this._bulkChildIds];
+		if (!childIds.length){ alert(this._t('alert.choose_child_first')); return; }
+		const taskIds = [...this._bulkSelected];
+		if (!taskIds.length) return;
+		const all = this._store.allTasks || [];
+		for (const taskId of taskIds){
+			const t = all.find(x => x.id === taskId);
+			if (!t || t.assigned_to) continue; // skip already-assigned
+			for (const cid of childIds){
+				try{
+					await this.hass.callService('chores4kids', 'assign_task', { task_id: taskId, child_id: cid });
+					this._setBonusVisualState(taskId, 'assigned');
+				}catch(e){ /* continue */ }
+			}
+		}
+		this._bulkSelected = new Set();
+		this._bulkChildIds = new Set();
+		this._bulkChildMenuOpen = false;
+		this._bulkMode = false;
+		this.requestUpdate();
+	}
+	async _bulkDeleteSelected(){
+		const ids = [...this._bulkSelected];
+		if (!ids.length) return;
+		if (!confirm(this._t('confirm.bulk_delete', { n: ids.length }))) return;
+		for (const id of ids){
+			try{ await this.hass.callService('chores4kids', 'delete_task', { task_id: id }); }catch(e){ /* continue */ }
+		}
+		this._bulkSelected = new Set();
+		this._bulkMode = false;
+		this.requestUpdate();
 	}
 
 	// Category management
