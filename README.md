@@ -100,7 +100,7 @@ If you don’t see the card in the UI editor:
 ### Admin view (parents)
 
 ```yaml
-type: custom:chores4kids-dev-card
+type: custom:chores4kids-card
 mode: admin
 show_scoreboard: true
 ```
@@ -108,7 +108,7 @@ show_scoreboard: true
 ### Kid view (for a specific child)
 
 ```yaml
-type: custom:chores4kids-dev-card
+type: custom:chores4kids-card
 mode: kid
 child: "Emma"
 ```
@@ -232,6 +232,8 @@ The card includes multiple languages (including English and Danish) and localize
 
 - **Card shows no data**
   - Make sure the integration is installed, configured, and HA was restarted
+- **Custom element not found**
+  - Use `type: custom:chores4kids-card` in your dashboard YAML (not `chores4kids-dev-card`)
 - **No children listed**
   - Create children in Admin view (or call `chores4kids.add_child`)
 - **No tasks**

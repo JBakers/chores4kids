@@ -64,6 +64,7 @@ const C4K_I18N = {
 		'err.title_required':'Title is required','err.points_required':'Points are required','err.points_number':'Points must be a number','err.points_positive':'Points must be 0 or more',
 		'status.assigned':'Assigned','status.in_progress':'In progress','status.awaiting_approval':'Awaiting approval','status.approved':'Approved','status.rejected':'Rejected','status.unassigned':'Unassigned','status.taken':'Taken',
 		'status.overdue':'Overdue','overdue.reassign_prompt':'This task is also scheduled for today. Assign it again?','overdue.yes':'Yes, assign again','overdue.no':'No thanks',
+		'debug.mark_overdue':'[TEST] Mark overdue',
 		// Shop
 		'shop.title':'Point shop','shop.open':'Open shop','shop.item':'Item','shop.price':'Price','shop.icon':'Icon','shop.image':'Image','shop.upload':'Upload image','shop.add_item':'Add item','shop.history':'Purchase history','shop.child':'Child','shop.when':'When','shop.date':'Date','shop.time':'Time','shop.advanced':'Advanced actions','shop.entity':'Entity','shop.operation':'Operation','shop.add_action':'Add action','shop.add_delay':'Add delay','shop.steps':'Steps','shop.seconds':'Seconds','shop.minutes':'Minutes','shop.hours':'Hours','shop.delay':'Delay','shop.active':'Active','shop.buy':'Buy','shop.bought':'Bought','shop.clear_history':'Clear history','confirm.clear_history':'Clear all purchase history?',
 		// Child specific
@@ -222,6 +223,217 @@ const C4K_I18N = {
 			'editor.color_task_points_bg':'Opgavepoint (baggrund)',
 			'editor.color_task_points_text':'Opgavepoint (tekst)',
 			'editor.color_empty_default':'Tom = standard'
+		},
+		nl: {
+			'overview.title':'Toegewezen taken',
+			'overview.finished_title':'Voltooide taken',
+			'overview.show_all':'Toon alles ({pending} in afwachting)',
+			'overview.none_active':'Geen actieve taken op dit moment.',
+			'overview.none':'Geen taken.',
+			'overview.finished_none':'Nog geen voltooide taken.',
+			'card.admin_title':'Chores4Kids – Ouders',
+			'input.new_child_name':'Nieuw kind — naam',
+			'btn.add_child':'Kind toevoegen',
+			'input.new_category_name':'Nieuwe categorie — naam',
+			'btn.add_category':'Categorie toevoegen',
+			'section.categories':'Categorieën',
+			'section.children':'Kinderen',
+			'th.name':'Naam',
+			'th.color':'Kleur',
+			'th.points':'Punten',
+			'th.pending':'In afwachting',
+			'th.actions':'Acties',
+			'th.status':'Status',
+			'th.assign':'Toegewezen aan',
+			'th.categories':'Categorieën',
+			'th.completed':'Voltooid',
+			'btn.rename':'Hernoemen',
+			'btn.delete':'Verwijderen',
+			'section.new_task':'Nieuwe taak',
+			'ph.title':'Titel',
+			'ph.points':'Punten',
+			'ph.description':'Beschrijving (optioneel)',
+			'ph.bonus_title':'Titel bonustaak',
+			'ph.bonus_points':'Bonuspunten',
+			'ph.due':'Vervaldatum',
+			'ph.early_bonus_days':'Bonusdagen (vroeg)',
+			'ph.early_bonus_points':'Bonuspunten',
+			'ui.early_bonus_enabled':'Schakel vroege voltooiingsbonus in',
+			'warn.repeat_overrides_due':'Herhaling is actief, dus de vervaldatum is gebaseerd op de geselecteerde weekdagen in plaats van deze datum.',
+			'warn.schedule_overrides_due':'Een schema is actief, dus de vervaldatum is gebaseerd op het schema in plaats van deze datum.',
+			'schedule.weekly':'Wekelijkse taak',
+			'schedule.monthly':'Maandelijkse taak',
+			'ph.categories':'Categorieën',
+			'select.assign_child':'Kind toewijzen',
+			'select.categories':'Selecteer categorieën',
+			'ph.icon':'Icoon (mdi:...)',
+			'icon.choose':'Kies icoon',
+			'icon.clear':'Verwijder icoon',
+			'icon.none':'Geen',
+			'icon.search':'Zoek icoon',
+			'btn.create_task':'Taak aanmaken',
+			'btn.update_task':'Taak bijwerken',
+			'btn.edit':'Bewerken',
+			'editor.loaded_task':'Bestaande taak bewerken',
+			'section.unassigned':'Niet-toegewezen taken',
+			'btn.assign':'Toewijzen',
+			'section.tasks_per_child':'Taken per kind',
+			'btn.start':'Starten',
+			'btn.back':'Opnieuw toewijzen',
+			'btn.awaiting':'In afwachting',
+			'btn.approve':'Goedkeuren',
+			'btn.approve_bonus':'Bonus goedkeuren',
+			'btn.approve_all':'Alles goedkeuren',
+			'btn.approve_partial':'Gedeeltelijk goedkeuren',
+			'lbl.approved':'Goedgekeurd',
+			'section.scoreboard':'Scorebord',
+			'confirm.delete_child':'{name} verwijderen?',
+			'confirm.delete_task':'Taak verwijderen?',
+			'alert.choose_child_first':'Kies eerst een kind',
+			'ui.auto_recycle':'Goedgekeurde taken automatisch opnieuw aanmaken',
+			'ui.quick_complete':'Snel voltooien (een tik)',
+			'ui.skip_approval':'Ouderlijke goedkeuring overslaan',
+			'ui.bonus_task':'Bonustaak inschakelen',
+			'ui.fastest_wins':'Snelste wint (eerste kind claimt de taak)',
+			'ui.persist_until_done':'Verplaats onvoltooide taak naar de volgende dag',
+			'ui.persist_help':'De onvoltooide taak wordt automatisch naar de volgende dag verplaatst',
+			'ui.mark_overdue':'Markeer onvoltooide taak als vervallen',
+			'ui.toggle_off_on':'Uit/Aan',
+			'section.tasks':'Taken',
+			'form.save':'Opslaan',
+			'form.add':'Toevoegen',
+			'form.cancel':'Annuleren',
+			'form.close':'Sluiten',
+			'form.clear':'Wissen',
+			'repeat.label':'Herhalen',
+			'repeat.enable':'Taak herhalen',
+			'repeat.auto_assign':'Automatisch toewijzen (herhalen)',
+			'repeat.save':'Plan opslaan',
+			'repeat.days.mon':'Ma',
+			'repeat.days.tue':'Di',
+			'repeat.days.wed':'Wo',
+			'repeat.days.thu':'Do',
+			'repeat.days.fri':'Vr',
+			'repeat.days.sat':'Za',
+			'repeat.days.sun':'Zo',
+			'assign.disabled_auto':'Uitgeschakeld: automatische toewijzing (herhaling) actief',
+			'assign.auto_to':'Automatisch toegewezen aan {names}',
+			'btn.add_points':'Punten toevoegen',
+			'btn.reset_points':'Punten resetten',
+			'points.title':'Punten toevoegen aan {name}',
+			'points.quick':'Snel toevoegen',
+			'points.remove':'Snel verwijderen',
+			'points.custom':'Aangepast aantal',
+			'err.title_required':'Titel is verplicht',
+			'err.points_required':'Punten zijn verplicht',
+			'err.points_number':'Punten moeten een getal zijn',
+			'err.points_positive':'Punten moeten 0 of meer zijn',
+			'status.assigned':'Toegewezen',
+			'status.in_progress':'In uitvoering',
+			'status.awaiting_approval':'Wacht op goedkeuring',
+			'status.approved':'Goedgekeurd',
+			'status.rejected':'Geweigerd',
+			'status.unassigned':'Niet toegewezen',
+			'status.taken':'Genomen',
+			'status.overdue':'Vervallen',
+			'overdue.reassign_prompt':'Deze taak staat ook voor vandaag gepland. Opnieuw toewijzen?',
+			'overdue.yes':'Ja, opnieuw toewijzen',
+			'overdue.no':'Nee bedankt',
+			'debug.mark_overdue':'[TEST] Markeer als vervallen',
+			'shop.title':'Winkel',
+			'shop.open':'Winkel openen',
+			'shop.item':'Artikel',
+			'shop.price':'Prijs',
+			'shop.icon':'Icoon',
+			'shop.image':'Afbeelding',
+			'shop.upload':'Afbeelding uploaden',
+			'shop.add_item':'Artikel toevoegen',
+			'shop.history':'Aankoopgeschiedenis',
+			'shop.child':'Kind',
+			'shop.when':'Datum en tijd',
+			'shop.date':'Datum',
+			'shop.time':'Tijd',
+			'shop.active':'Actief',
+			'shop.buy':'Kopen',
+			'shop.bought':'Gekocht',
+			'shop.clear_history':'Geschiedenis wissen',
+			'confirm.clear_history':'Volledige aankoopgeschiedenis wissen?',
+			'shop.advanced':'Geavanceerde acties',
+			'shop.entity':'Entiteit',
+			'shop.operation':'Bewerking',
+			'shop.add_action':'Actie toevoegen',
+			'shop.add_delay':'Vertraging toevoegen',
+			'shop.steps':'Stappen',
+			'shop.seconds':'Seconden',
+			'shop.minutes':'Minuten',
+			'shop.hours':'Uren',
+			'shop.delay':'Vertraging',
+			'sort.configure':'Sorteren',
+			'sort.title':'Kies volgorde',
+			'sort.categories_order':'Categorievolgorde',
+			'sort.none':'Geen categorie',
+			'sort.save':'Opslaan',
+			'sort.reset':'Resetten',
+			'card.child_title_fallback':'Chores4Kids – {name}',
+			'msg.child_not_found':'Kind niet gevonden. Controleer de naam in de kaartconfiguratie.',
+			'msg.no_tasks':'Momenteel geen taken.',
+			'btn.done':'Klaar',
+			'btn.start_task':'Taak starten',
+			'btn.complete_task':'Taak voltooien',
+			'btn.task_done':'Taak voltooid',
+			'btn.complete_bonus':'Bonus voltooien',
+			'lbl.awaiting':'Wacht op goedkeuring',
+			'lbl.bonus':'Bonustaak',
+			'lbl.bonus_locked':'Voltooi eerst de hoofdtaak',
+			'lbl.taken_by':'Taak genomen door {name}',
+			'lbl.points':'punten',
+			'section.daily_tasks':'Vandaag',
+			'section.weekly_tasks':'Wekelijkse taken',
+			'lbl.deadline':'Deadline: {date}',
+			'lbl.early_bonus_by':'+{points} bonuspunten indien voltooid op of voor {date}',
+			// Editor UI
+			'editor.mode':'Modus',
+			'editor.mode_admin':'Ouders',
+			'editor.mode_kid':'Kind',
+			'editor.mode_overview':'Recente taken',
+			'editor.child_label':'Kind',
+			'editor.child_placeholder':'Naam van het kind',
+			'editor.child_select_prompt':'— Selecteer kind —',
+			'editor.child_hint':'Nog geen kind gevonden — voer de naam handmatig in.',
+			'editor.developer_mode':'Ontwikkelaarsmodus',
+			'editor.developer_mode_help':'Toon debug-knoppen zoals handmatig markeren als vervallen',
+			'editor.enable_points':'Punten',
+			'editor.enable_points_help':'Toon punten, puntenwinkel en puntenacties',
+			'editor.completion_sound':'Voltooiingsgeluid',
+			'editor.completion_sound_help':'Opgeslagen als /local/chores4kids/completion.<ext> en gebruikt op alle dashboards',
+			'editor.delete_sound':'Geluidsbestand verwijderen',
+			'editor.delete_sound_confirm':'Het geuploade voltooiingsgeluid verwijderen?',
+			'editor.delete_sound_failed':'Verwijderen van geluidsbestand mislukt',
+			'editor.confetti':'Confetti',
+			'editor.confetti_help':'Toon confetti-animatie bij voltooien',
+			'editor.notify_target':'Voltooiingsnotificatie',
+			'editor.notify_target_help':'Stuur een pushmelding wanneer een kind een taak als voltooid markeert.',
+			'editor.notify_target_none':'Persoon toevoegen',
+			'editor.notify_toggle_complete':'Meld taakvoltooiing',
+			'editor.notify_toggle_shop':'Meld winkelaankoop',
+			'editor.notify_toggle_shop_image':'Toon afbeelding in aankoopnotificatie',
+			'section.notifications':'Notificaties',
+			'editor.colors':'Kleuren',
+			'editor.color_field_bg':'Achtergrond',
+			'editor.color_field_text':'Tekst',
+			'editor.color_group_start':'Knop "Starten"',
+			'editor.color_group_complete':'Knop "Voltooien"',
+			'editor.color_group_kid_points':'Totaalpunten kinderen',
+			'editor.color_group_task_points':'Taakpunten',
+			'editor.color_start_bg':'Knop "Starten" (achtergrond)',
+			'editor.color_start_text':'Knop "Starten" (tekst)',
+			'editor.color_complete_bg':'Knop "Voltooien" (achtergrond)',
+			'editor.color_complete_text':'Knop "Voltooien" (tekst)',
+			'editor.color_kid_points_bg':'Totaalpunten kinderen (achtergrond)',
+			'editor.color_kid_points_text':'Totaalpunten kinderen (tekst)',
+			'editor.color_task_points_bg':'Taakpunten (achtergrond)',
+			'editor.color_task_points_text':'Taakpunten (tekst)',
+			'editor.color_empty_default':'Leeg = standaard'
 		},
 			sv: {
 			'overview.title': 'Tilldelade uppgifter', 'overview.show_all': 'Visa alla ({pending} väntar)', 'overview.none': 'Inga uppgifter ännu.',
@@ -974,6 +1186,20 @@ class Chores4KidsDevCard extends LitElement {
 		.bonus-subtask-actions .chip{ transform: translateY(14px); }
 		.actions{ display:flex; gap:8px; }
 		.task .actions button{ font-size: var(--c4k-kid-task-button-size, 14px); padding: .55em 1.05em; min-height: 2.4em; }
+		@media (max-width:700px){
+			.task{ grid-template-columns: 1fr; gap:10px; align-items:stretch; }
+			.task-icon{ width:auto; justify-content:flex-start; }
+			.task-icon ha-icon{ --mdc-icon-size: 32px; width:32px; height:32px; }
+			.task .actions{ width:100%; flex-wrap:wrap; }
+			.task .actions button{ width:100%; }
+			.bonus-wrap{ grid-column:1; width:100%; margin-left:0; margin-top:8px; margin-bottom:8px; }
+			.bonus-link{ display:none; }
+			.bonus-subtask{ grid-template-columns:1fr; row-gap:8px; }
+			.bonus-subtask-title, .bonus-subtask-meta{ grid-column:1; }
+			.bonus-subtask-actions{ grid-column:1; grid-row:auto; justify-content:stretch; align-items:center; }
+			.bonus-subtask-actions button,
+			.bonus-subtask-actions .chip{ transform:none; width:100%; }
+		}
 		.img-preview{ width:72px; height:72px; border-radius:10px; border:1px solid var(--divider-color); background: color-mix(in srgb, var(--primary-color) 6%, transparent); object-fit:cover; }
 		.file-hidden{ display:none; }
 		/* Child shop grid – responsive */
@@ -1560,12 +1786,25 @@ class Chores4KidsDevCard extends LitElement {
 	_clearCompleted(taskId){ try{ const map={...(this._completed||{})}; delete map[String(taskId)]; this._completed=map; localStorage.setItem('c4k_completed_ts', JSON.stringify(map)); }catch{} }
 
 	// ===== CATEGORY SORTING HELPERS =====
+	_defaultCategoryOrderIds(){
+		try{
+			const cats = Array.isArray(this._store?.categories) ? [...this._store.categories] : [];
+			cats.sort((a,b)=>{
+				const an = String(a?.name||'').toLocaleLowerCase();
+				const bn = String(b?.name||'').toLocaleLowerCase();
+				const byName = an.localeCompare(bn);
+				if (byName !== 0) return byName;
+				return String(a?.id||'').localeCompare(String(b?.id||''));
+			});
+			return cats.map(c=> c.id).filter(Boolean);
+		}catch{ return []; }
+	}
 	_catOrderResolved(){
 		const cats = this._store.categories||[];
 		const NONE='__none__';
 		let order = Array.isArray(this._catOrder)? [...this._catOrder]:[];
 		order = order.filter(id=> id===NONE || cats.some(c=> c.id===id));
-		for (const c of cats){ if (!order.includes(c.id)) order.push(c.id); }
+		for (const cid of this._defaultCategoryOrderIds()){ if (!order.includes(cid)) order.push(cid); }
 		if (!order.includes(NONE)) order.push(NONE);
 		return order;
 	}
@@ -1965,16 +2204,18 @@ class Chores4KidsDevCard extends LitElement {
 																	<span style="white-space:nowrap;">${this._t('schedule.monthly')}</span>
 																</label>
 							</div>
-															${this._repeatEnabled ? html`
+															${(this._repeatEnabled || this._weeklyEnabled || this._monthlyEnabled) ? html`
 								<div class="repeat-line">
-									<div class="repeat-days">
-										<div style="font-size:.9rem; color: var(--secondary-text-color); margin-bottom:4px;">${this._t('repeat.label')}</div>
-										<div class="days">
-											${['mon','tue','wed','thu','fri','sat','sun'].map(k=> html`
-												<span class="day ${this._repeatDays.has(k)?'on':''}" @click=${()=>{ const s=this._repeatDays; s.has(k)?s.delete(k):s.add(k); this.requestUpdate(); }}>${this._t('repeat.days.'+k)}</span>
-											`)}
-										</div>
-									</div>
+																	${this._repeatEnabled ? html`
+																	<div class="repeat-days">
+																		<div style="font-size:.9rem; color: var(--secondary-text-color); margin-bottom:4px;">${this._t('repeat.label')}</div>
+																		<div class="days">
+																			${['mon','tue','wed','thu','fri','sat','sun'].map(k=> html`
+																				<span class="day ${this._repeatDays.has(k)?'on':''}" @click=${()=>{ const s=this._repeatDays; s.has(k)?s.delete(k):s.add(k); this.requestUpdate(); }}>${this._t('repeat.days.'+k)}</span>
+																			`)}
+																		</div>
+																	</div>
+																	` : ''}
 									<div class="repeat-assign">
 										<div style="font-size:.9rem; color: var(--secondary-text-color); margin-bottom:4px;">${this._t('repeat.auto_assign')}</div>
 										<div class="multi-dd" @click=${(e)=>{ e.stopPropagation(); this._openRepeatMenu = !this._openRepeatMenu; }}>
@@ -2038,26 +2279,6 @@ class Chores4KidsDevCard extends LitElement {
 													</div>`}
 												</td>
 									<td data-label="${this._t('th.actions')}">
-														${(this._weeklyEnabled || this._monthlyEnabled) ? html`
-															<div class="repeat-line">
-																<div class="repeat-assign">
-																	<div style="font-size:.9rem; color: var(--secondary-text-color); margin-bottom:4px;">${this._t('repeat.auto_assign')}</div>
-																	<div class="multi-dd" @click=${(e)=>{ e.stopPropagation(); this._openRepeatMenu = !this._openRepeatMenu; }}>
-																		<div class="box">
-																			<span class="multi-dd-value ${this._repeatAssign && this._repeatAssign.size ? '' : 'placeholder'}">
-																				${(()=>{ const ids=this._repeatAssign||new Set(); const names=children.filter(c=>ids.has(c.id)).map(c=>c.name); return names.length? (names.slice(0,2).join(', ')+(names.length>2?` +${names.length-2}`:'')) : '—'; })()}
-																			</span>
-																			<ha-icon icon="mdi:chevron-down"></ha-icon>
-																		</div>
-																		${this._openRepeatMenu ? html`
-																			<div class="multi-dd-menu" @click=${e=> e.stopPropagation()}>
-																				${children.map(c=> html`<label><input type="checkbox" .checked=${this._repeatAssign?.has?.(c.id)} @change=${(e)=>{ const s=this._repeatAssign instanceof Set? this._repeatAssign : new Set(this._repeatAssign||[]); if(e.target.checked){ s.add(c.id);}else{ s.delete(c.id);} this._repeatAssign=s; this.requestUpdate(); }} /><span>${c.name}</span></label>`)}
-																			</div>
-																		` : ''}
-																	</div>
-																</div>
-															</div>
-														` : ''}
 										<button class="btn-ghost" @click=${()=> this._editTask(t)}>${this._t('btn.edit')}</button>
 										<button class="btn-primary" ?disabled=${this._autoAssignActive(t)} title="${this._autoAssignActive(t)? this._t('assign.disabled_auto') : ''}" @click=${()=> {
 											const row = this.shadowRoot.querySelector(`tr[data-task="${t.id}"]`);
@@ -2622,7 +2843,7 @@ class Chores4KidsDevCard extends LitElement {
 			this._catOrder = arr; this.requestUpdate();
 		};
 		const save = ()=>{ try{ localStorage.setItem('c4k_cat_order', JSON.stringify(order)); }catch{} this._catOrder = order; this._sortModalOpen=false; this.requestUpdate(); };
-		const reset = ()=>{ order = cats.map(c=> c.id); order.push(NONE); this._catOrder = order; this.requestUpdate(); };
+		const reset = ()=>{ order = this._defaultCategoryOrderIds(); order.push(NONE); this._catOrder = order; this.requestUpdate(); };
 		return html`<div class="overlay ${this._sortModalOpen?'open':''}" @click=${e=>{ if (e.target.classList.contains('overlay')) this._sortModalOpen=false; }}>
 			${this._sortModalOpen ? html`<div class="modal" style="max-width: 560px; width: min(95vw, 560px);" @click=${e=>e.stopPropagation()}>
 				<h3>${this._t('sort.title')}</h3>

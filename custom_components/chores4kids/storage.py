@@ -131,6 +131,8 @@ class KidsChoresStore:
         self.notify_services: List[str] = []
         self.notify_service_settings: Dict[str, Dict[str, bool]] = {}
         self._earned_backfill_done: bool = False
+        self._rollover_running: bool = False
+        self._last_rollover_local_date: Optional[str] = None
 
     async def async_load(self):
         data = await self._store.async_load()
@@ -1379,203 +1381,247 @@ class KidsChoresStore:
         from homeassistant.util import dt as dt_util
         from datetime import datetime
 
-        now = dt_util.now()  # aware, local
-        today = now.date()
-        weekday = now.weekday()  # 0=Mon..6=Sun
+        if self._rollover_running:
+            return
+        self._rollover_running = True
+        try:
+            now = dt_util.now()  # aware, local
+            today = now.date()
+            today_key = today.isoformat()
+            if self._last_rollover_local_date == today_key:
+                return
+            weekday = now.weekday()  # 0=Mon..6=Sun
 
-        # Capture scheduled templates BEFORE cleanup so we don't lose the plan
-        templates = []
-        for t in self.tasks:
-            try:
-                mode = str(getattr(t, "schedule_mode", "") or "").strip().lower()
-            except Exception:
-                mode = ""
-            # Backwards compat: if no mode but repeat_days exists, treat as repeat.
-            is_scheduled = bool(getattr(t, "repeat_days", None)) or (mode in ("weekly", "monthly", "repeat"))
-            if not is_scheduled:
-                continue
+            # Capture scheduled templates BEFORE cleanup so we don't lose the plan
+            templates = []
+            for t in self.tasks:
+                try:
+                    mode = str(getattr(t, "schedule_mode", "") or "").strip().lower()
+                except Exception:
+                    mode = ""
+                # Backwards compat: if no mode but repeat_days exists, treat as repeat.
+                is_scheduled = bool(getattr(t, "repeat_days", None)) or (mode in ("weekly", "monthly", "repeat"))
+                if not is_scheduled:
+                    continue
 
-            # targets can be multiple children
-            targets = list(getattr(t, "repeat_child_ids", []) or [])
-            if not targets and getattr(t, "repeat_child_id", None):
-                targets = [t.repeat_child_id]
-            templates.append({
-                "id": t.id,
-                "title": t.title,
-                "points": t.points,
-                "description": t.description,
-                "repeat_days": list(getattr(t, "repeat_days", []) or []),
-                "schedule_mode": mode,
-                "icon": t.icon,
-                "due": getattr(t, "due", None),
-                "early_bonus_enabled": getattr(t, "early_bonus_enabled", False),
-                "early_bonus_days": getattr(t, "early_bonus_days", 0),
-                "early_bonus_points": getattr(t, "early_bonus_points", 0),
-                "bonus_enabled": getattr(t, "bonus_enabled", False),
-                "bonus_title": getattr(t, "bonus_title", ""),
-                "bonus_points": getattr(t, "bonus_points", 0),
-                "persist_until_completed": getattr(t, "persist_until_completed", False),
-                "quick_complete": getattr(t, "quick_complete", False),
-                "skip_approval": getattr(t, "skip_approval", False),
-                "categories": list(getattr(t, "categories", []) or []),
-                "targets": [x for x in targets if x],
-                "mark_overdue": getattr(t, "mark_overdue", True),
-            })
+                # targets can be multiple children
+                targets = list(getattr(t, "repeat_child_ids", []) or [])
+                if not targets and getattr(t, "repeat_child_id", None):
+                    targets = [t.repeat_child_id]
+                templates.append({
+                    "id": t.id,
+                    "title": t.title,
+                    "points": t.points,
+                    "description": t.description,
+                    "repeat_days": list(getattr(t, "repeat_days", []) or []),
+                    "schedule_mode": mode,
+                    "icon": t.icon,
+                    "due": getattr(t, "due", None),
+                    "early_bonus_enabled": getattr(t, "early_bonus_enabled", False),
+                    "early_bonus_days": getattr(t, "early_bonus_days", 0),
+                    "early_bonus_points": getattr(t, "early_bonus_points", 0),
+                    "bonus_enabled": getattr(t, "bonus_enabled", False),
+                    "bonus_title": getattr(t, "bonus_title", ""),
+                    "bonus_points": getattr(t, "bonus_points", 0),
+                    "persist_until_completed": getattr(t, "persist_until_completed", False),
+                    "quick_complete": getattr(t, "quick_complete", False),
+                    "skip_approval": getattr(t, "skip_approval", False),
+                    "categories": list(getattr(t, "categories", []) or []),
+                    "targets": [x for x in targets if x],
+                    "mark_overdue": getattr(t, "mark_overdue", True),
+                    "fastest_wins": bool(getattr(t, "fastest_wins", False)),
+                })
 
-        def _local_created_date(task: Task):
-            created_raw = getattr(task, "created", None)
-            if not created_raw:
-                return None
-            try:
-                created_dt = dt_util.parse_datetime(str(created_raw))
-                if created_dt is None:
-                    created_dt = datetime.fromisoformat(str(created_raw))
-                return dt_util.as_local(created_dt).date()
-            except Exception:
-                return None
+            def _local_created_date(task: Task):
+                created_raw = getattr(task, "created", None)
+                if not created_raw:
+                    return None
+                try:
+                    created_dt = dt_util.parse_datetime(str(created_raw))
+                    if created_dt is None:
+                        created_dt = datetime.fromisoformat(str(created_raw))
+                    return dt_util.as_local(created_dt).date()
+                except Exception:
+                    return None
 
-        # 1) Roll/clean older tasks with rules:
-        #    - NEVER remove unassigned template tasks (assigned_to is empty)
-        #    - Only carry tasks forward when persist_until_completed is true and task is not approved.
-        kept: list[Task] = []
-        for t in self.tasks:
-            is_template = not (getattr(t, "assigned_to", None) and str(getattr(t, "assigned_to", "")).strip())
-            if is_template:
-                kept.append(t)
-                continue
-
-            created_date = _local_created_date(t)
-            # If created is missing/invalid, treat it as "old" so it doesn't stick around forever.
-            is_older = (created_date is None) or (created_date < today)
-            if is_older:
-                if getattr(t, "status", None) == STATUS_AWAITING:
+            # 1) Roll/clean older tasks with rules:
+            #    - NEVER remove unassigned template tasks (assigned_to is empty)
+            #    - Only carry tasks forward when persist_until_completed is true and task is not approved.
+            kept: list[Task] = []
+            for t in self.tasks:
+                is_template = not (getattr(t, "assigned_to", None) and str(getattr(t, "assigned_to", "")).strip())
+                if is_template:
                     kept.append(t)
                     continue
-                if bool(getattr(t, "persist_until_completed", False)) and getattr(t, "status", None) != STATUS_APPROVED:
-                    from datetime import datetime as _dt, timezone as _tz
-                    t.created = _dt.now(_tz.utc).isoformat()
-                    t.carried_over = True
+
+                created_date = _local_created_date(t)
+                # If created is missing/invalid, treat it as "old" so it doesn't stick around forever.
+                is_older = (created_date is None) or (created_date < today)
+                if is_older:
+                    if getattr(t, "status", None) == STATUS_AWAITING:
+                        kept.append(t)
+                        continue
+                    if bool(getattr(t, "persist_until_completed", False)) and getattr(t, "status", None) != STATUS_APPROVED:
+                        from datetime import datetime as _dt, timezone as _tz
+                        t.created = _dt.now(_tz.utc).isoformat()
+                        t.carried_over = True
+                        kept.append(t)
+                    else:
+                        continue
+                else:
                     kept.append(t)
+            self.tasks = kept
+
+            # 2) Auto-create today's repeated tasks from captured templates
+            # Prefer using repeat_template_id to detect existing active instances (more robust than title/date).
+            # Important: Old awaiting tasks from previous days must not block today's spawn.
+            def _active_instance_exists(template_id: str, child_id: str) -> bool:
+                if not template_id:
+                    return False
+
+                def _local_due_date(task: Task):
+                    due_raw = getattr(task, "due", None)
+                    if not due_raw:
+                        return None
+                    try:
+                        due_dt = dt_util.parse_datetime(str(due_raw))
+                        if due_dt is not None:
+                            return dt_util.as_local(due_dt).date()
+                        due_d = dt_util.parse_date(str(due_raw))
+                        if due_d is not None:
+                            return due_d
+                    except Exception:
+                        return None
+                    return None
+
+                for x in self.tasks:
+                    if getattr(x, "assigned_to", None) != child_id:
+                        continue
+                    if getattr(x, "repeat_template_id", None) != template_id:
+                        continue
+                    if getattr(x, "status", None) not in (STATUS_ASSIGNED, STATUS_IN_PROGRESS, STATUS_AWAITING):
+                        continue
+
+                    due_date = _local_due_date(x)
+                    if due_date is not None:
+                        if due_date >= today:
+                            return True
+                        continue
+
+                    created_date = _local_created_date(x)
+                    if created_date is not None and created_date >= today:
+                        return True
+                return False
+
+            for tpl in templates:
+                rdays = tpl.get("repeat_days") or []
+                try:
+                    mode = str(tpl.get("schedule_mode") or "").strip().lower()
+                except Exception:
+                    mode = ""
+
+                # Backwards compat: if no mode but repeat_days exists, treat as repeat.
+                if mode in ("", "repeat"):
+                    if not rdays:
+                        continue
+                elif mode == "weekly":
+                    rdays = [0]
+                elif mode == "monthly":
+                    rdays = []
                 else:
+                    # unknown -> ignore
                     continue
-            else:
-                kept.append(t)
-        self.tasks = kept
+                targets = tpl.get("targets") or []
 
-        # 2) Auto-create today's repeated tasks from captured templates
-        # Prefer using repeat_template_id to detect existing active instances (more robust than title/date).
-        def _active_instance_exists(template_id: str, child_id: str) -> bool:
-            try:
-                if template_id and self._active_repeat_instance_exists(template_id, child_id):
-                    return True
-            except Exception:
-                pass
-            return False
-
-        for tpl in templates:
-            rdays = tpl.get("repeat_days") or []
-            try:
-                mode = str(tpl.get("schedule_mode") or "").strip().lower()
-            except Exception:
-                mode = ""
-
-            # Backwards compat: if no mode but repeat_days exists, treat as repeat.
-            if mode in ("", "repeat"):
-                if not rdays:
+                is_bonus_repeat = bool(tpl.get("early_bonus_enabled")) and int(tpl.get("early_bonus_days", 0) or 0) > 0 and int(tpl.get("early_bonus_points", 0) or 0) > 0
+                if is_bonus_repeat:
+                    # Ignore any fixed date in tpl['due']; deadline is derived from schedule.
+                    tpl_id = str(tpl.get("id") or "")
+                    if mode == "monthly":
+                        due_iso = self._next_monthly_due_iso(today, include_today=True)
+                    else:
+                        due_iso = self._next_repeat_due_iso(today, list(rdays), include_today=True)
+                    if tpl_id and due_iso:
+                        for target in targets:
+                            if not target:
+                                continue
+                            if _active_instance_exists(tpl_id, target):
+                                continue
+                            await self.add_task(
+                                title=tpl["title"],
+                                points=tpl["points"],
+                                description=tpl["description"],
+                                assigned_to=target,
+                                icon=tpl.get("icon") or "",
+                                due=due_iso,
+                                repeat_template_id=tpl_id,
+                                early_bonus_enabled=True,
+                                early_bonus_days=int(tpl.get("early_bonus_days", 0) or 0),
+                                early_bonus_points=int(tpl.get("early_bonus_points", 0) or 0),
+                                bonus_enabled=bool(tpl.get("bonus_enabled", False)),
+                                bonus_title=str(tpl.get("bonus_title", "") or ""),
+                                bonus_points=int(tpl.get("bonus_points", 0) or 0),
+                                persist_until_completed=True,
+                                quick_complete=tpl.get("quick_complete", False),
+                                skip_approval=tpl.get("skip_approval", False),
+                                categories=list(tpl.get("categories") or []),
+                                mark_overdue=tpl.get("mark_overdue", True),
+                                fastest_wins=bool(tpl.get("fastest_wins", False)),
+                            )
                     continue
-            elif mode == "weekly":
-                rdays = [0]
-            elif mode == "monthly":
-                rdays = []
-            else:
-                # unknown -> ignore
-                continue
-            targets = tpl.get("targets") or []
 
-            is_bonus_repeat = bool(tpl.get("early_bonus_enabled")) and int(tpl.get("early_bonus_days", 0) or 0) > 0 and int(tpl.get("early_bonus_points", 0) or 0) > 0
-            if is_bonus_repeat:
-                # Ignore any fixed date in tpl['due']; deadline is derived from schedule.
-                tpl_id = str(tpl.get("id") or "")
-                if mode == "monthly":
-                    due_iso = self._next_monthly_due_iso(today, include_today=True)
-                else:
-                    due_iso = self._next_repeat_due_iso(today, list(rdays), include_today=True)
-                if tpl_id and due_iso:
+                # Scheduled behavior: create on the scheduled boundary.
+                should_spawn = False
+                if mode in ("", "repeat"):
+                    should_spawn = weekday in (rdays or [])
+                elif mode == "weekly":
+                    should_spawn = weekday == 0
+                elif mode == "monthly":
+                    should_spawn = int(today.day) == 1
+
+                if should_spawn:
+                    tpl_id = str(tpl.get("id") or "")
                     for target in targets:
                         if not target:
                             continue
-                        if self._active_repeat_instance_exists(tpl_id, target):
+                        if _active_instance_exists(tpl_id, target):
                             continue
+                        # Fallback de-dupe (in case older data didn't set repeat_template_id)
+                        try:
+                            if any(
+                                (x.assigned_to == target and x.title == tpl.get("title") and _local_created_date(x) == today)
+                                for x in self.tasks
+                            ):
+                                continue
+                        except Exception:
+                            pass
+
                         await self.add_task(
                             title=tpl["title"],
                             points=tpl["points"],
                             description=tpl["description"],
                             assigned_to=target,
                             icon=tpl.get("icon") or "",
-                            due=due_iso,
-                            repeat_template_id=tpl_id,
-                            early_bonus_enabled=True,
-                            early_bonus_days=int(tpl.get("early_bonus_days", 0) or 0),
-                            early_bonus_points=int(tpl.get("early_bonus_points", 0) or 0),
-                            bonus_enabled=bool(tpl.get("bonus_enabled", False)),
-                            bonus_title=str(tpl.get("bonus_title", "") or ""),
-                            bonus_points=int(tpl.get("bonus_points", 0) or 0),
-                            persist_until_completed=True,
+                            due=tpl.get("due"),
+                            repeat_template_id=tpl_id or None,
+                            early_bonus_enabled=tpl.get("early_bonus_enabled"),
+                            early_bonus_days=tpl.get("early_bonus_days"),
+                            early_bonus_points=tpl.get("early_bonus_points"),
+                            bonus_enabled=tpl.get("bonus_enabled"),
+                            bonus_title=tpl.get("bonus_title"),
+                            bonus_points=tpl.get("bonus_points"),
+                            persist_until_completed=(tpl.get("persist_until_completed", False) if mode in ("", "repeat") else False),
                             quick_complete=tpl.get("quick_complete", False),
                             skip_approval=tpl.get("skip_approval", False),
                             categories=list(tpl.get("categories") or []),
                             mark_overdue=tpl.get("mark_overdue", True),
+                            fastest_wins=bool(tpl.get("fastest_wins", False)),
                         )
-                continue
 
-            # Scheduled behavior: create on the scheduled boundary.
-            should_spawn = False
-            if mode in ("", "repeat"):
-                should_spawn = weekday in (rdays or [])
-            elif mode == "weekly":
-                should_spawn = weekday == 0
-            elif mode == "monthly":
-                should_spawn = int(today.day) == 1
-
-            if should_spawn:
-                tpl_id = str(tpl.get("id") or "")
-                for target in targets:
-                    if not target:
-                        continue
-                    if _active_instance_exists(tpl_id, target):
-                        continue
-                    # Fallback de-dupe (in case older data didn't set repeat_template_id)
-                    try:
-                        if any(
-                            (x.assigned_to == target and x.title == tpl.get("title") and _local_created_date(x) == today)
-                            for x in self.tasks
-                        ):
-                            continue
-                    except Exception:
-                        pass
-
-                    await self.add_task(
-                        title=tpl["title"],
-                        points=tpl["points"],
-                        description=tpl["description"],
-                        assigned_to=target,
-                        icon=tpl.get("icon") or "",
-                        due=tpl.get("due"),
-                        repeat_template_id=tpl_id or None,
-                        early_bonus_enabled=tpl.get("early_bonus_enabled"),
-                        early_bonus_days=tpl.get("early_bonus_days"),
-                        early_bonus_points=tpl.get("early_bonus_points"),
-                        bonus_enabled=tpl.get("bonus_enabled"),
-                        bonus_title=tpl.get("bonus_title"),
-                        bonus_points=tpl.get("bonus_points"),
-                        persist_until_completed=(tpl.get("persist_until_completed", False) if mode in ("", "repeat") else False),
-                        quick_complete=tpl.get("quick_complete", False),
-                        skip_approval=tpl.get("skip_approval", False),
-                        categories=list(tpl.get("categories") or []),
-                        mark_overdue=tpl.get("mark_overdue", True),
-                    )
-
-        await self.async_save()
+            await self.async_save()
+            self._last_rollover_local_date = today_key
+        finally:
+            self._rollover_running = False
 
     async def reset_points(self, child_id: Optional[str] = None):
         if child_id:
@@ -1700,6 +1746,45 @@ class KidsChoresStore:
             if t.id == task_id:
                 return t
         raise ValueError("task_not_found")
+
+    def resolve_task_id_for_child(self, task_id: str, child_id: Optional[str] = None) -> str:
+        """Resolve automation task references to an assigned instance for a child.
+
+        Backward compatibility: some automations pass a template task id (unassigned)
+        plus child_id. In that case, pick the best matching assigned instance.
+        """
+        base = self._get_task(task_id)
+        if not child_id:
+            return base.id
+
+        # Direct hit: the provided task is already assigned to this child.
+        if getattr(base, "assigned_to", None) == child_id:
+            return base.id
+
+        candidates: list[Task] = []
+        for t in self.tasks:
+            if getattr(t, "assigned_to", None) != child_id:
+                continue
+            if t.id == task_id or getattr(t, "repeat_template_id", None) == task_id:
+                candidates.append(t)
+
+        if not candidates:
+            return base.id
+
+        # Prefer actionable states, then newest by created timestamp.
+        state_rank = {
+            STATUS_ASSIGNED: 0,
+            STATUS_IN_PROGRESS: 1,
+            STATUS_AWAITING: 2,
+            STATUS_REJECTED: 3,
+            STATUS_APPROVED: 4,
+        }
+
+        def _created_key(t: Task) -> str:
+            return str(getattr(t, "created", "") or "")
+
+        candidates.sort(key=lambda t: (state_rank.get(getattr(t, "status", ""), 99), _created_key(t)), reverse=False)
+        return candidates[0].id
 
     def _get_category(self, category_id: str) -> Category:
         for cat in self.categories:

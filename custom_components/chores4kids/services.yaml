@@ -93,6 +93,9 @@ set_task_status:
   fields:
     task_id:
       required: true
+    child_id:
+      required: false
+      description: "Optional child id. If task_id points to a template, the integration resolves the assigned instance for this child."
     status:
       required: true
       selector:
@@ -111,6 +114,9 @@ approve_task:
   fields:
     task_id:
       required: true
+    child_id:
+      required: false
+      description: "Optional child id. If task_id points to a template, the integration resolves the assigned instance for this child."
 approve_bonus_task:
   fields:
     task_id:

@@ -504,13 +504,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
     async def svc_set_task_status(call: ServiceCall):
+        resolved_task_id = store.resolve_task_id_for_child(
+            call.data["task_id"],
+            call.data.get("child_id"),
+        )
         await store.set_task_status(
-            call.data["task_id"], 
+            resolved_task_id,
             call.data["status"],
             call.data.get("completed_ts")
         )
         if call.data.get("status") == "awaiting_approval":
-            await _notify_task_completed(call.data["task_id"])
+            await _notify_task_completed(resolved_task_id)
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
     async def svc_complete_bonus_task(call: ServiceCall):
@@ -527,7 +531,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
     async def svc_approve_task(call: ServiceCall):
-        await store.approve_task(call.data["task_id"])
+        resolved_task_id = store.resolve_task_id_for_child(
+            call.data["task_id"],
+            call.data.get("child_id"),
+        )
+        await store.approve_task(resolved_task_id)
         async_dispatcher_send(hass, SIGNAL_DATA_UPDATED)
 
     async def svc_delete_task(call: ServiceCall):
