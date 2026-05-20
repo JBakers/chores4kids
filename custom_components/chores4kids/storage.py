@@ -784,16 +784,17 @@ class KidsChoresStore:
                 repeat_template_id = None
             # For scheduled templates, compute the next occurrence as due date
             # instead of using the template's own (likely stale or None) due field.
+            # Daily/repeat tasks are always for today — no deadline needed.
             computed_due = t.due
             if repeat_template_id:
                 try:
                     _today = dt_util.now().date()
                     if mode == "monthly":
                         computed_due = self._next_monthly_due_iso(_today, include_today=True)
+                    elif mode == "weekly":
+                        computed_due = self._next_repeat_due_iso(_today, [0], include_today=True)
                     else:
-                        _rdays = [0] if mode == "weekly" else list(getattr(t, "repeat_days", []) or [])
-                        if _rdays:
-                            computed_due = self._next_repeat_due_iso(_today, _rdays, include_today=True)
+                        computed_due = None
                 except Exception:
                     pass
             await self.add_task(
@@ -1652,9 +1653,8 @@ class KidsChoresStore:
                 if should_spawn:
                     tpl_id = str(tpl.get("id") or "")
                     # Compute due date for this occurrence dynamically (don't use stale template due).
-                    if mode in ("", "repeat"):
-                        due_iso = self._next_repeat_due_iso(today, list(rdays), include_today=True)
-                    elif mode == "weekly":
+                    # Daily/repeat tasks are always spawned for today — no deadline needed.
+                    if mode == "weekly":
                         due_iso = self._next_repeat_due_iso(today, [0], include_today=True)
                     elif mode == "monthly":
                         due_iso = self._next_monthly_due_iso(today, include_today=True)
